@@ -1,45 +1,61 @@
 #include "tuim.hpp"
 
 #include <math.h>
+#include <time.h>
 
 int main(int argc, char* argv[])
-{
+{    
     tuim::init(argc, argv);
-    tuim::set_title("test");
+    tuim::set_title("tuim demo");
 
     tuim::keyboard::key key;
+    int a = 0;
 
-    double width = 100;
-    int cursor = 0;
+    int table_cursor = 0;
+    std::vector<std::string> columns = { "id", "name", "money" };
+    std::vector<std::vector<std::string>> rows = {
+        { "0", "a", "10€" },
+        { "1", "b", "0€" },
+        { "2", "c", "20€" },
+        { "3", "d", "50€" },
+    };
 
     do {
-        tuim::clear();
-
-        tuim::move(10, 200);
-        tuim::clear_line();
-        tuim::print("\r&8&_ccursor:&r &7%d\n", cursor);
-
-        for(double i = cursor; i < cursor + width; i += 0.1) {
-            
-            int r = round(((sin(i/width + i) + 1)/2) * 255.0);
-            int g = round(((cos(i/width + i) + 1)/2) * 255.0);
-            int b = round(((cos(i/width + i) + 1)/2) * 255.0);
-            unsigned int color = (r << 16) + (g << 8) + b;
-            
-            if(floor(i) == cursor) color = 0;
-
-            //tuim::move(i, 10);
-            tuim::move(i, 20 + (sin(i/10)*10));
-            tuim::print("#_%06x ", color);
+        key = tuim::keyboard::NONE;
+        if(a < 2) {
+            a++;
+        } else {
+            key = tuim::keyboard::get_pressed();
+            a = 1;
         }
-        key = tuim::keyboard::get_pressed();
+        /*if(tuim::keyboard::is_pressed()) {
+            key = tuim::keyboard::get_pressed();
+        }*/
 
-        if(key == tuim::keyboard::LEFT) cursor = std::max(0, cursor - 1);
-        if(key == tuim::keyboard::RIGHT) cursor = std::min(int(width), cursor + 1);
+        tuim::clear();
+        tuim::update(key);
+
+        tuim::text("#t2", "cctim\n");
+        tuim::button("#b0", "&_c&atest2&r\n", NULL);
+        tuim::text("#t4", "hello world\n");
+
+        if(tuim::button("#b1", "&_c&6test1&r\n", NULL)) {
+            tuim::text("#t1", "\tpressed\n");
+        }
+
+        tuim::text("#t3", "\nhovered :" + std::to_string(tuim::ctx->hovered_id) + "\n\n");
+
+        tuim::button("#b2", "&_c&atest2&r\n", NULL);
+        tuim::button("#b3", "&_c&5test3&r\n", NULL);
+
+        tuim::scroll_table("#table", &table_cursor, 0, columns, rows, 10, 2);
+
+        usleep(1000 * 100);
+        //std::cin.get();
 
     } while(key != tuim::keyboard::ESCAPE);
 
-    //std::cin.get();
+    tuim::delete_context();
 
     return 0;
 }

@@ -2,7 +2,7 @@ all: build run clean
 
 build:
 	@g++ -c test.cpp
-	@g++ test.o -o test
+	@g++ test.o -o test -Wall
 
 run:
 	@./test
