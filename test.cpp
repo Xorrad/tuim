@@ -12,9 +12,11 @@ int main(int argc, char* argv[])
     int a = 0;
 
     int table_cursor = 0;
-    std::vector<std::string> columns = { "id", "name", "money" };
+    int table_key = 0;
+
+    std::vector<std::string> columns = { "&_bid&r", "&_aname&r", "&_emoney&r" };
     std::vector<std::vector<std::string>> rows = {
-        { "0", "a", "10€" },
+        { "0", "&ca", "10€" },
         { "1", "b", "0€" },
         { "2", "c", "20€" },
         { "3", "d", "50€" },
@@ -35,7 +37,36 @@ int main(int argc, char* argv[])
         tuim::clear();
         tuim::update(key);
 
-        tuim::text("#t2", "cctim\n");
+        tuim::print("123456\n");
+        //tuim::set_cursor({5, 5});
+        tuim::vec2 cursor_pos = tuim::get_cursor();
+
+        tuim::print("1234567\n");
+        tuim::print("%d", time(0));
+        //printf("(%d,%d)", cursor_pos.x, cursor_pos.y);
+        tuim::set_title(std::to_string(cursor_pos.x) + "," + std::to_string(cursor_pos.y));
+        //tuim::set_cursor({5, 5});
+
+        /*tuim::text("#t4", "test1");
+        tuim::print("\n");
+        tuim::print("\n");
+
+        cursor_pos = tuim::get_cursor();
+        printf("(%d,%d)", cursor_pos.x, cursor_pos.y);*/
+
+        /*tuim::start_container(); {
+            tuim::start_column();
+            tuim::text("#t4", "test1");
+            tuim::text("#t4", "test2");
+            tuim::end_column();
+
+            tuim::start_column();
+        }
+        tuim::end_container();
+
+        for(int i = 0; i < 10; i++)
+            tuim::text("#t" + std::to_string(i), "text " + std::to_string(i) + "\n");
+
         tuim::button("#b0", "&_c&atest2&r\n", NULL);
         tuim::text("#t4", "hello world\n");
 
@@ -48,8 +79,8 @@ int main(int argc, char* argv[])
         tuim::button("#b2", "&_c&atest2&r\n", NULL);
         tuim::button("#b3", "&_c&5test3&r\n", NULL);
 
-        tuim::scroll_table("#table", &table_cursor, 0, columns, rows, 10, 2);
-
+        tuim::scroll_table("#table", &table_cursor, &table_key, columns, rows, 10, 2);*/
+        
         usleep(1000 * 100);
         //std::cin.get();
 
