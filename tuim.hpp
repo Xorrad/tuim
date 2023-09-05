@@ -17,6 +17,8 @@
 #include <vector>
 #include <stdint.h>
 
+#include <bitset> //to remove
+
 #ifdef __linux__
 
 #include <unistd.h>
@@ -31,9 +33,9 @@
 
 #endif
 
-#define TUIM_COLOR '&'
-#define TUIM_CUSTOM_COLOR '#'
-#define TUIM_BACKGROUND_COLOR '_'
+#define TUIM_COLOR_FOREGROUND '&'
+#define TUIM_COLOR_BACKGROUND '_'
+#define TUIM_COLOR_CUSTOM '#'
 
 namespace tuim {
 
@@ -204,6 +206,8 @@ namespace tuim {
     int calc_text_vector_width(const std::vector<std::string> &str, int padding); /* Compute the max width of strings in a vector */
     std::vector<int> calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding); /* Compute the max width for each columns */
 
+    vec2 calc_relative_position(); /* Calculate the coordinates from which to start drawing an item. */
+
     bool button(std::string id, std::string text, button_flags flags); /* Display a button */
     void text(std::string id, std::string text); /* Display text */
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
@@ -330,14 +334,14 @@ void tuim::newline() {
 
 void tuim::clear() {
     /* https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797 */
-    printf("\33[2J\33[3J\r");
+    printf("\33[2J\33[3J");
     tuim::set_cursor({0, 0});
     ctx->pressed_key = tuim::keyboard::NONE;
 }
 
 void tuim::clear_line() {
     /* https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797 */
-    printf("\33[2K\r");
+    printf("\33[2K");
 }
 
 template<typename ... Args>
@@ -449,7 +453,7 @@ void tuim::update(keyboard::key key) {
     tuim::context* ctx = tuim::get_context();
     ctx->pressed_key = key;
 
-    if(ctx->active_id == NULL || ctx->items_stack.at(tuim::get_index(ctx->active_id)).flags & ~tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE) {
+    if(ctx->active_id == NULL || !(ctx->items_stack.at(tuim::get_index(ctx->active_id)).flags & tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE)) {
         ctx->last_active_id = ctx->active_id;
         ctx->active_id = NULL;
 
@@ -510,29 +514,44 @@ int tuim::calc_text_width(const std::string &str, int padding) {
     int width = tuim::string::length(str) + padding*2;
 
     /* Remove color tags characters from string length */
-    bool escaped = false;
+    bool color_escape = false;
+    bool ascii_escape = false;
+
     for(int i = 0; i < str.length(); i++) {
 
         /* Skip if character is escaped */
-        if(escaped) {
-            escaped = false;
+        if(color_escape) {
+            color_escape = false;
             continue;
         }
 
         if(str[i] == '\\') {
-            escaped = true;
+            color_escape = true;
+            continue;
+        }
+        
+        if(str[i] == '\033') {
+            ascii_escape = true;
+        }
+        
+        if(ascii_escape) {
+
+            if ((str[i] >= 'A' && str[i] <= 'Z') || (str[i] >= 'a' && str[i] <= 'z'))
+                ascii_escape = false;
+
+            width--;
             continue;
         }
 
         /* Check for minecraft color codes */
-        if(str[i] == TUIM_COLOR) {
-            int code_length = (str.length() - i > 2 && str[i+1] == TUIM_BACKGROUND_COLOR) ? 3 : 2;
+        if(str[i] == TUIM_COLOR_FOREGROUND) {
+            int code_length = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 3 : 2;
             if(str.length() - i >= code_length) width -= code_length;
         }
 
         /* Check for custom color codes */
-        if(str[i] == TUIM_CUSTOM_COLOR) {
-            int code_length = (str.length() - i > 6 && str[i+1] == TUIM_BACKGROUND_COLOR) ? 8 : 7;
+        if(str[i] == TUIM_COLOR_CUSTOM) {
+            int code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 8 : 7;
             if(str.length() - i >= code_length) width -= code_length;
         }
     }
@@ -562,6 +581,15 @@ std::vector<int> tuim::calc_columns_width(const std::vector<std::string> &column
     return columns_width;
 }
 
+tuim::vec2 tuim::calc_relative_position()
+{
+    context* ctx = get_context();
+    container ctn = ctx->containers_stack.back();
+    vec2 pos = ctn.cursor_pos;
+
+    return pos;
+}
+
 bool tuim::button(std::string id, std::string text, button_flags flags) {
     tuim::item_id button_id = tuim::str_to_id(id);
     tuim::item item = tuim::item{ button_id, NULL };
@@ -574,6 +602,7 @@ bool tuim::button(std::string id, std::string text, button_flags flags) {
         tuim::print("[x] ");
     }
     else tuim::print("[ ] ");
+
     tuim::print(text.c_str());
 
     return tuim::is_item_active();
@@ -584,7 +613,10 @@ void tuim::text(std::string id, std::string text) {
     tuim::item item = tuim::item{ button_id, tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
 
+    vec2 pos = calc_relative_position();
+
     tuim::print(text.c_str());
+    tuim::print("\n");
 }
 
 
@@ -722,7 +754,7 @@ std::string tuim::impl::format(const std::string &str) {
         /* Skip if character is escaped */
         if(escaped) {
             /* Add an anti-slash there was not any color code to escape */
-            if(str[i] != TUIM_COLOR && str[i] != TUIM_CUSTOM_COLOR && str[i] != '\\') formatted += "\\";
+            if(str[i] != TUIM_COLOR_FOREGROUND && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') formatted += "\\";
 
             formatted += str[i];
             escaped = false;
@@ -735,8 +767,8 @@ std::string tuim::impl::format(const std::string &str) {
         }
 
         /* Check for minecraft color codes */
-        if(str[i] == TUIM_COLOR) {
-            int code_length = (str.length() - i > 2 && str[i+1] == TUIM_BACKGROUND_COLOR) ? 2 : 1;
+        if(str[i] == TUIM_COLOR_FOREGROUND) {
+            int code_length = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 2 : 1;
             if(str.length() - i < code_length) continue;
 
             std::string code = str.substr(i + 1, code_length);
@@ -759,8 +791,8 @@ std::string tuim::impl::format(const std::string &str) {
         }
 
         /* Check for custom color codes */
-        if(str[i] == TUIM_CUSTOM_COLOR) {
-            int code_length = (str.length() - i > 6 && str[i+1] == TUIM_BACKGROUND_COLOR) ? 7 : 6;
+        if(str[i] == TUIM_COLOR_CUSTOM) {
+            int code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 7 : 6;
             if(str.length() - i < code_length) continue;
 
             std::string code = str.substr(i + 1, code_length);
@@ -871,7 +903,7 @@ std::string tuim::string::fill(const std::string &str, size_t length) {
 
 tuim::color::color tuim::color::from_code(std::string str) {
     /* Check if there is the background character */
-    bool background = (str[0] == TUIM_BACKGROUND_COLOR);
+    bool background = (str[0] == TUIM_COLOR_BACKGROUND);
 
     //printf("(%d) %s\n", background, str.c_str());
     
@@ -889,7 +921,7 @@ tuim::color::color tuim::color::from_code(std::string str) {
 
 tuim::color::color tuim::color::from_hex(std::string str) {
     /* Check if there is the background character */
-    bool background = (str[0] == TUIM_BACKGROUND_COLOR);
+    bool background = (str[0] == TUIM_COLOR_BACKGROUND);
 
     /* Remove background character if there is one */
     if(background) str = str.substr(1, str.length() - 1);
