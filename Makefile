@@ -1,11 +1,15 @@
-all: build run clean
+CXX 	  := g++
+CXX_FLAGS := -std=c++17 -pedantic-errors -Wall
+LDFLAGS   := -L/usr/lib -lstdc++ -lncurses
+SRC 	  := $(wildcard examples/*.cpp)
+TARGETS   := $(SRC:examples/%.cpp=%)
 
-build:
-	@g++ -c test.cpp
-	@g++ test.o -o test -Wall
+all: $(TARGETS) clean
 
-run:
-	@./test
+%: examples/%.cpp
+	@mkdir -p bin
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o bin/$@ $<
+	./bin/$@
 
 clean:
-	@rm -f test.o test
+	@rm -f bin/*

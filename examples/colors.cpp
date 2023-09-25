@@ -1,4 +1,4 @@
-#include "tuim.hpp"
+#include "../tuim.hpp"
 
 #include <math.h>
 
@@ -15,7 +15,7 @@ int main(int argc, char* argv[])
     do {
         tuim::clear();
 
-        tuim::move(10, 200);
+        tuim::set_cursor({10, 200});
         tuim::clear_line();
         tuim::print("\r&8&_ccursor:&r &7%d\n", cursor);
 
@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
             if(floor(i) == cursor) color = 0;
 
             //tuim::move(i, 10);
-            tuim::move(i, 20 + (sin(i/10)*10));
+            tuim::set_cursor({i, 20 + (sin(i/10)*10)});
             tuim::print("#_%06x ", color);
         }
         key = tuim::keyboard::get_pressed();

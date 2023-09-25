@@ -16,8 +16,10 @@
 #include <map>
 #include <vector>
 #include <stdint.h>
+#include <memory>
+#include <sstream>
 
-#include <bitset> //to remove
+#include <ncurses.h>
 
 #ifdef __linux__
 
@@ -212,12 +214,14 @@ namespace tuim {
     void text(std::string id, std::string text); /* Display text */
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
-    container get_container();
+    container& get_container();
     void start_container();
     void end_container();
 
     void start_column();
     void end_column();
+
+    void move_container_cursor(vec2 pos);
 
     /* Internals are defined within this namespace */
     namespace impl {
@@ -360,7 +364,12 @@ void tuim::print(const char* fmt, Args ... args) {
     /* Print formatted text and reset colors and styles */
     printf("%s\33[0m", formatted.c_str());
 
+    int width = calc_text_width(formatted);
     
+    vec2 pos = get_container().cursor_pos;
+    pos.x += width;
+
+    move_container_cursor(width);
 }
 
 tuim::context* tuim::get_context() {
@@ -704,9 +713,9 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
     print_table_border(u8"└", u8"┴", u8"┘");
 }
 
-tuim::container tuim::get_container() {
+tuim::container& tuim::get_container() {
     tuim::context* ctx = tuim::get_context();
-    return ctx->containers_stack.front();
+    return ctx->containers_stack.back();
 }
 
 void tuim::start_container() {
@@ -728,6 +737,11 @@ void tuim::start_column() {
 
 void tuim::end_column() {
 
+}
+
+void tuim::move_container_cursor(vec2 pos) {
+    container& ctn = get_container();
+    ctn.cursor_pos = pos;
 }
 
 void tuim::impl::open_terminal() {

@@ -1,4 +1,4 @@
-#include "tuim.hpp"
+#include "../tuim.hpp"
 
 #include <math.h>
 #include <time.h>
