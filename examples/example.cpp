@@ -96,36 +96,36 @@ void scroll_table(const char* id, int& cursor, std::vector<std::string> columns,
     //print box top
 }
 
-void menu::main_menu() {
-    static bool d = true;
+// void menu::main_menu() {
+//     static bool d = true;
 
-    //tuim::start_centered(20);
-    tuim::text("#title_text", "Main Menu", tuim::ITEM_FLAGS_DISABLED);
-    tuim::hr("#title_separator", 20);
-    //tuim::end_centered();
+//     //tuim::start_centered(20);
+//     tuim::text("#title_text", "Main Menu", tuim::ITEM_FLAGS_DISABLED);
+//     tuim::hr("#title_separator", 20);
+//     //tuim::end_centered();
 
-    if(d) {
+//     if(d) {
 
-        if(tuim::button("#supprimer", "&_cSupprimer")) {
-            menu::push(menu::NEW_CHARACTER);
-            //initialize character, world...
+//         if(tuim::button("#supprimer", "&_cSupprimer")) {
+//             menu::push(menu::NEW_CHARACTER);
+//             //initialize character, world...
 
-            d = true;
-        }
+//             d = true;
+//         }
 
-        if(tuim::button("#new_game", "&_cNew Game")) {
-            menu::push(menu::NEW_CHARACTER);
-            //initialize character, world...
-        }
-    }
+//         if(tuim::button("#new_game", "&_cNew Game")) {
+//             menu::push(menu::NEW_CHARACTER);
+//             //initialize character, world...
+//         }
+//     }
 
-    tuim::menu* m = new tuim::menu("My Menu");
+//     tuim::menu* m = new tuim::menu("My Menu");
 
-    m->add_event([this, &](tuim::keyboard::key key){
+//     m->add_event([this, &](tuim::keyboard::key key){
         
-    });
+//     });
 
-    m->add(new tuim::component::text("martial: 10"));
+//     m->add(new tuim::component::text("martial: 10"));
 
-    return m;
-}
+//     return m;
+// }

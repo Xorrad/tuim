@@ -1,2 +1,2 @@
 # tuim
-A text-based user interface for command lines.
+A immediate mode text-based user interface for command lines.

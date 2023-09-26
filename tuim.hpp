@@ -7,8 +7,12 @@
 *                                                                           *
 ****************************************************************************/
 
+#pragma once
+
 #ifndef TUIM_CPP
 #define TUIM_CPP
+
+#define TUIM_IMPL_NCURSES
 
 #include <iostream>
 #include <string.h>
@@ -24,6 +28,7 @@
 #ifdef __linux__
 
 #include <unistd.h>
+
 #include <termios.h>
 #include <sys/ioctl.h>
 
@@ -38,6 +43,8 @@
 #define TUIM_COLOR_FOREGROUND '&'
 #define TUIM_COLOR_BACKGROUND '_'
 #define TUIM_COLOR_CUSTOM '#'
+
+#define null 0
 
 namespace tuim {
 
@@ -109,7 +116,7 @@ namespace tuim {
         key get_pressed(); /* Get pressed key */
         bool is_pressed(); /* Check if key has been pressed */
 
-    };
+    }
 
     /* User interface components are defined here */
     enum item_flags_ {
@@ -154,9 +161,13 @@ namespace tuim {
         std::vector<printing_info> printings_stack; /* Store what has been drawn by the last item */
 
         context() {
-            active_id = NULL;
-            last_active_id = NULL;
-            hovered_id = NULL;
+            initscr();
+            curs_set(0);
+            noecho();
+
+            active_id = null;
+            last_active_id = null;
+            hovered_id = null;
 
             pressed_key = keyboard::key::NONE;
 
@@ -180,7 +191,8 @@ namespace tuim {
     void newline(); /* Break to a new line */
     void clear(); /* Clear terminal output */
     void clear_line(); /* Clear terminal output */
-    template<typename ... Args> void print(const char* fmt, Args ... args); /* Print formatted text */
+    template<typename ... Args> void print(const char* fmt, Args ... args); /* Format text for printing to screen */
+    void print_to_screen(const std::string& str); /* Print text to screen and reset style */
 
     context* get_context(); /* Get tuim user interface global context */
 
@@ -204,13 +216,13 @@ namespace tuim {
     void update(keyboard::key key); /* Update the items */
     void display(); /* Display pushed items */
 
-    int calc_text_width(const std::string &str, int padding); /* Compute a text width with padding */
-    int calc_text_vector_width(const std::vector<std::string> &str, int padding); /* Compute the max width of strings in a vector */
-    std::vector<int> calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding); /* Compute the max width for each columns */
+    int calc_text_width(const std::string &str, int padding = 0); /* Compute a text width with padding*/
+    int calc_text_vector_width(const std::vector<std::string> &str, int padding = 0); /* Compute the max width of strings in a vector */
+    std::vector<int> calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding = 0); /* Compute the max width for each columns */
 
     vec2 calc_relative_position(); /* Calculate the coordinates from which to start drawing an item. */
 
-    bool button(std::string id, std::string text, button_flags flags); /* Display a button */
+    bool button(std::string id, std::string text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
     void text(std::string id, std::string text); /* Display text */
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
@@ -230,7 +242,7 @@ namespace tuim {
         std::string format(const std::string &str); /* Format a string for printing */
 
         void add_printing_info(const std::string &str); /* Log a printing into the stack */
-    };
+    }
 
     namespace string {
         size_t length(const std::string &str);
@@ -281,9 +293,9 @@ namespace tuim {
 
             { "r", from_hex(0x000000) } /* RESET */
         };
-    };
+    }
 
-};
+}
 
 /* Inline functions definitions */
 
@@ -301,6 +313,7 @@ void tuim::create_context() {
 }
 
 void tuim::delete_context() {
+    endwin();
     delete tuim::ctx;
 }
 
@@ -310,25 +323,12 @@ void tuim::set_title(std::string title) {
 }
 
 void tuim::set_cursor(vec2 pos) {
-    /* https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797 */
-    printf("\033[%d;%dH", pos.y, pos.x);
+    move(pos.y, pos.x);
 }
 
 tuim::vec2 tuim::get_cursor() {
-    tuim::vec2 pos = {0, 0};
-    int t = STDOUT_FILENO;
-    struct termios sav;
-    tcgetattr(t, &sav);
-    struct termios opt = sav;
-    opt.c_lflag &= ~(ICANON | ECHO);
-    // but better just cfmakeraw(&opt);
-    //cfmakeraw(&opt);
-    tcsetattr(t, TCSANOW, &opt);
-    printf("\033[6n");
-    //fflush(stdout);
-    scanf("\033[%d;%dR", &pos.y, &pos.x);
-    tcsetattr(t, TCSANOW, &sav);
-
+    vec2 pos;
+    getyx(stdscr, pos.y, pos.x);
     return pos;
 }
 
@@ -337,15 +337,20 @@ void tuim::newline() {
 }
 
 void tuim::clear() {
-    /* https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797 */
-    printf("\33[2J\33[3J");
-    tuim::set_cursor({0, 0});
+    erase();
     ctx->pressed_key = tuim::keyboard::NONE;
 }
 
 void tuim::clear_line() {
-    /* https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797 */
-    printf("\33[2K");
+    vec2 pos = get_cursor();
+    set_cursor({pos.y, 0});
+    clrtoeol();
+    set_cursor(pos);
+}
+
+void tuim::print_to_screen(const std::string& str)
+{
+    printw("%s\33[0m", str.c_str());
 }
 
 template<typename ... Args>
@@ -362,14 +367,14 @@ void tuim::print(const char* fmt, Args ... args) {
     formatted = tuim::impl::format(formatted);
 
     /* Print formatted text and reset colors and styles */
-    printf("%s\33[0m", formatted.c_str());
+    print_to_screen(formatted);
 
     int width = calc_text_width(formatted);
     
     vec2 pos = get_container().cursor_pos;
     pos.x += width;
 
-    move_container_cursor(width);
+    move_container_cursor(pos);
 }
 
 tuim::context* tuim::get_context() {
@@ -392,7 +397,7 @@ tuim::item_id tuim::get_id() {
 
 uint32_t tuim::get_index(tuim::item_id id) {
     tuim::context *ctx = tuim::get_context();
-    for(int i = 0; i < ctx->items_stack.size(); i++) {
+    for(size_t i = 0; i < ctx->items_stack.size(); i++) {
         if(ctx->items_stack.at(i).id == id) {
             return i;
         }
@@ -427,7 +432,7 @@ bool tuim::is_pressed(keyboard::key key) {
 
 bool tuim::has_hoverable() {
     tuim::context* ctx = tuim::get_context();
-    for(int i = 0; i < ctx->items_stack.size(); i++) {
+    for(size_t i = 0; i < ctx->items_stack.size(); i++) {
         if(!(ctx->items_stack.at(i).flags & tuim::item_flags_::ITEM_FLAGS_DISABLED))
             return true;
     }
@@ -452,7 +457,7 @@ void tuim::add_item(item item) {
 
 void tuim::remove_item(item_id id) {
     tuim::context *ctx = tuim::get_context();
-    for(int i = 0; i < ctx->items_stack.size(); i++) {
+    for(size_t i = 0; i < ctx->items_stack.size(); i++) {
         if(ctx->items_stack.at(i).id == i)
             ctx->items_stack.erase(ctx->items_stack.begin() + i);
     }
@@ -462,9 +467,9 @@ void tuim::update(keyboard::key key) {
     tuim::context* ctx = tuim::get_context();
     ctx->pressed_key = key;
 
-    if(ctx->active_id == NULL || !(ctx->items_stack.at(tuim::get_index(ctx->active_id)).flags & tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE)) {
+    if(ctx->active_id == null || !(ctx->items_stack.at(tuim::get_index(ctx->active_id)).flags & tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE)) {
         ctx->last_active_id = ctx->active_id;
-        ctx->active_id = NULL;
+        ctx->active_id = null;
 
         int hovered_index = tuim::get_hovered_index();
 
@@ -474,7 +479,7 @@ void tuim::update(keyboard::key key) {
 
         /* Set the first hoverable item hovered if no item is */
         if(hovered_index == -1 && tuim::has_hoverable()) {
-            for(int i = 0; i < ctx->items_stack.size(); i++) {
+            for(size_t i = 0; i < ctx->items_stack.size(); i++) {
                 if(!(ctx->items_stack.at(i).flags & tuim::item_flags_::ITEM_FLAGS_DISABLED)) {
                     ctx->hovered_id = ctx->items_stack.at(i).id;
                     hovered_index = i;
@@ -486,9 +491,9 @@ void tuim::update(keyboard::key key) {
         /* Move cursor to previous hoverable item */
         if(key == tuim::keyboard::UP) {
             if(tuim::has_hoverable()) {
-                tuim::item_id id = NULL;
+                tuim::item_id id = null;
                 if(hovered_index != -1) {
-                    int index = std::max(0, hovered_index - 1);
+                    size_t index = std::max(0, hovered_index - 1);
                     while(index > 0 && (ctx->items_stack.at(index).flags & tuim::item_flags_::ITEM_FLAGS_DISABLED)) index--;
                     if((ctx->items_stack.at(index).flags & tuim::item_flags_::ITEM_FLAGS_DISABLED)) index = hovered_index;
                     id = ctx->items_stack.at(index).id;
@@ -500,9 +505,9 @@ void tuim::update(keyboard::key key) {
         /* Move cursor to next hoverable item */
         if(key == tuim::keyboard::DOWN) {
             if(tuim::has_hoverable()) {
-                tuim::item_id id = NULL;
+                tuim::item_id id = null;
                 if(hovered_index != -1) {
-                    int index = std::min(hovered_index + 1, (int) ctx->items_stack.size() - 1);
+                    size_t index = std::min(hovered_index + 1, (int) ctx->items_stack.size() - 1);
                     while(index < (ctx->items_stack.size() - 1) && (ctx->items_stack.at(index).flags) & tuim::item_flags_::ITEM_FLAGS_DISABLED) index++;
                     if((ctx->items_stack.at(index).flags & tuim::item_flags_::ITEM_FLAGS_DISABLED)) index = hovered_index;
                     id = ctx->items_stack.at(index).id;
@@ -526,7 +531,7 @@ int tuim::calc_text_width(const std::string &str, int padding) {
     bool color_escape = false;
     bool ascii_escape = false;
 
-    for(int i = 0; i < str.length(); i++) {
+    for(size_t i = 0; i < str.length(); i++) {
 
         /* Skip if character is escaped */
         if(color_escape) {
@@ -554,13 +559,13 @@ int tuim::calc_text_width(const std::string &str, int padding) {
 
         /* Check for minecraft color codes */
         if(str[i] == TUIM_COLOR_FOREGROUND) {
-            int code_length = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 3 : 2;
+            size_t code_length = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 3 : 2;
             if(str.length() - i >= code_length) width -= code_length;
         }
 
         /* Check for custom color codes */
         if(str[i] == TUIM_COLOR_CUSTOM) {
-            int code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 8 : 7;
+            size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 8 : 7;
             if(str.length() - i >= code_length) width -= code_length;
         }
     }
@@ -570,7 +575,7 @@ int tuim::calc_text_width(const std::string &str, int padding) {
 
 int tuim::calc_text_vector_width(const std::vector<std::string> &str, int padding) {
     int max_width = 0;
-    for(int i = 0; i < str.size(); i++) {
+    for(size_t i = 0; i < str.size(); i++) {
         int width = tuim::calc_text_width(str[i], padding);
         if(width > max_width) max_width = width;
     }
@@ -579,9 +584,9 @@ int tuim::calc_text_vector_width(const std::vector<std::string> &str, int paddin
 
 std::vector<int> tuim::calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding) {
     std::vector<int> columns_width = std::vector<int>(columns.size(), 0);
-    for(int i = 0; i < columns.size(); i++) {
+    for(size_t i = 0; i < columns.size(); i++) {
         int max_width = 0;
-        for(int j = 0; j < rows.size(); j++) {
+        for(size_t j = 0; j < rows.size(); j++) {
             int row_width = tuim::calc_text_width(rows[j][i], padding);
             if(row_width > max_width) max_width = row_width;
         }
@@ -601,7 +606,7 @@ tuim::vec2 tuim::calc_relative_position()
 
 bool tuim::button(std::string id, std::string text, button_flags flags) {
     tuim::item_id button_id = tuim::str_to_id(id);
-    tuim::item item = tuim::item{ button_id, NULL };
+    tuim::item item = tuim::item{ button_id, null };
     tuim::add_item(item);
 
     if(tuim::is_item_hovered()) {
@@ -652,7 +657,7 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
             *key = std::min(*key + 1, (int) columns.size()-1);
         }
 
-        if(tuim::is_pressed(tuim::keyboard::BACKSPACE)) tuim::set_active_id(NULL);
+        if(tuim::is_pressed(tuim::keyboard::BACKSPACE)) tuim::set_active_id(null);
     }
 
     if(tuim::is_item_hovered()) {
@@ -669,7 +674,7 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
 
     auto print_table_border = [&](const char *c1, const char *c2, const char *c3) {
         tuim::print(c1);
-        for(int i = 0; i < columns.size(); i++) {
+        for(size_t i = 0; i < columns.size(); i++) {
             if(i != 0) tuim::print(c2);
             tuim::print("%s", tuim::string::fill(u8"─", columns_width[i]).c_str());
         }
@@ -679,7 +684,7 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
 
     print_table_border(u8"┌", u8"┬", u8"┐");
 
-    for(int i = 0; i < columns.size(); i++) {
+    for(size_t i = 0; i < columns.size(); i++) {
         if(i == 0) tuim::print(u8"│");
 
         std::string padding_text = tuim::string::fill(" ", padding);
@@ -689,10 +694,10 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
     }
     tuim::print("\n");
     
-    for(int i = 0; i < rows.size(); i++) {
+    for(size_t i = 0; i < rows.size(); i++) {
         print_table_border(u8"├", u8"┼", u8"┤");
 
-        for(int j = 0; j < columns.size(); j++) {
+        for(size_t j = 0; j < columns.size(); j++) {
             if(j == 0) tuim::print(u8"│");
 
             bool selected = tuim::is_item_active() && i == *cursor && j == *key;
@@ -763,7 +768,7 @@ std::string tuim::impl::format(const std::string &str) {
     bool escaped = false;
     std::string formatted = "";
 
-    for(int i = 0; i < str.length(); i++) {
+    for(size_t i = 0; i < str.length(); i++) {
 
         /* Skip if character is escaped */
         if(escaped) {
@@ -782,7 +787,7 @@ std::string tuim::impl::format(const std::string &str) {
 
         /* Check for minecraft color codes */
         if(str[i] == TUIM_COLOR_FOREGROUND) {
-            int code_length = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 2 : 1;
+            size_t code_length = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 2 : 1;
             if(str.length() - i < code_length) continue;
 
             std::string code = str.substr(i + 1, code_length);
@@ -806,7 +811,7 @@ std::string tuim::impl::format(const std::string &str) {
 
         /* Check for custom color codes */
         if(str[i] == TUIM_COLOR_CUSTOM) {
-            int code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 7 : 6;
+            size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 7 : 6;
             if(str.length() - i < code_length) continue;
 
             std::string code = str.substr(i + 1, code_length);
@@ -975,5 +980,4 @@ std::string tuim::color::to_ansi(tuim::color::color color) {
 
     return ansi;
 }
-
 #endif

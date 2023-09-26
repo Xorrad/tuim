@@ -1,14 +1,15 @@
 CXX 	  := g++
-CXX_FLAGS := -std=c++17 -pedantic-errors -Wall
-LDFLAGS   := -L/usr/lib -lstdc++ -lncurses
+CXXFLAGS := -std=c++17 -Wall
+LDFLAGS   := -L/usr/lib -lstdc++ -lm -ldl -lncurses -ltinfo
 SRC 	  := $(wildcard examples/*.cpp)
 TARGETS   := $(SRC:examples/%.cpp=%)
 
 all: $(TARGETS) clean
 
 %: examples/%.cpp
+	@clear
 	@mkdir -p bin
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o bin/$@ $<
+	$(CXX) $(CXXFLAGS) -o bin/$@ $< $(LDFLAGS)
 	./bin/$@
 
 clean:
