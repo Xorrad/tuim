@@ -44,8 +44,6 @@
 #define TUIM_COLOR_BACKGROUND '_'
 #define TUIM_COLOR_CUSTOM '#'
 
-#define null 0
-
 namespace tuim {
 
     /* Forward declarations for ui */
@@ -165,9 +163,9 @@ namespace tuim {
             curs_set(0);
             noecho();
 
-            active_id = null;
-            last_active_id = null;
-            hovered_id = null;
+            active_id = 0;
+            last_active_id = 0;
+            hovered_id = 0;
 
             pressed_key = keyboard::key::NONE;
 
@@ -378,7 +376,7 @@ void tuim::print(const char* fmt, Args ... args) {
 }
 
 tuim::context* tuim::get_context() {
-    /* TODO -> add assert for ctx NULL*/
+    /* TODO -> add assert for ctx 0*/
     return tuim::ctx;
 }
 
@@ -467,9 +465,9 @@ void tuim::update(keyboard::key key) {
     tuim::context* ctx = tuim::get_context();
     ctx->pressed_key = key;
 
-    if(ctx->active_id == null || !(ctx->items_stack.at(tuim::get_index(ctx->active_id)).flags & tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE)) {
+    if(ctx->active_id == 0 || !(ctx->items_stack.at(tuim::get_index(ctx->active_id)).flags & tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE)) {
         ctx->last_active_id = ctx->active_id;
-        ctx->active_id = null;
+        ctx->active_id = 0;
 
         int hovered_index = tuim::get_hovered_index();
 
@@ -491,7 +489,7 @@ void tuim::update(keyboard::key key) {
         /* Move cursor to previous hoverable item */
         if(key == tuim::keyboard::UP) {
             if(tuim::has_hoverable()) {
-                tuim::item_id id = null;
+                tuim::item_id id = 0;
                 if(hovered_index != -1) {
                     size_t index = std::max(0, hovered_index - 1);
                     while(index > 0 && (ctx->items_stack.at(index).flags & tuim::item_flags_::ITEM_FLAGS_DISABLED)) index--;
@@ -505,7 +503,7 @@ void tuim::update(keyboard::key key) {
         /* Move cursor to next hoverable item */
         if(key == tuim::keyboard::DOWN) {
             if(tuim::has_hoverable()) {
-                tuim::item_id id = null;
+                tuim::item_id id = 0;
                 if(hovered_index != -1) {
                     size_t index = std::min(hovered_index + 1, (int) ctx->items_stack.size() - 1);
                     while(index < (ctx->items_stack.size() - 1) && (ctx->items_stack.at(index).flags) & tuim::item_flags_::ITEM_FLAGS_DISABLED) index++;
@@ -606,7 +604,7 @@ tuim::vec2 tuim::calc_relative_position()
 
 bool tuim::button(std::string id, std::string text, button_flags flags) {
     tuim::item_id button_id = tuim::str_to_id(id);
-    tuim::item item = tuim::item{ button_id, null };
+    tuim::item item = tuim::item{ button_id, 0 };
     tuim::add_item(item);
 
     if(tuim::is_item_hovered()) {
@@ -657,7 +655,7 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
             *key = std::min(*key + 1, (int) columns.size()-1);
         }
 
-        if(tuim::is_pressed(tuim::keyboard::BACKSPACE)) tuim::set_active_id(null);
+        if(tuim::is_pressed(tuim::keyboard::BACKSPACE)) tuim::set_active_id(0);
     }
 
     if(tuim::is_item_hovered()) {
