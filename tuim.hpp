@@ -698,7 +698,7 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
         for(size_t j = 0; j < columns.size(); j++) {
             if(j == 0) tuim::print(u8"│");
 
-            bool selected = tuim::is_item_active() && i == *cursor && j == *key;
+            bool selected = tuim::is_item_active() && i == (size_t) *cursor && j == (size_t) *key;
 
             double column_padding = padding + (columns_width[j] - tuim::calc_text_width(rows[i][j], padding));
             std::string padding_text = tuim::string::fill(" ", padding - selected);

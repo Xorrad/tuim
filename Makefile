@@ -1,5 +1,5 @@
 CXX 	  := g++
-CXXFLAGS := -std=c++17 -Wall
+CXXFLAGS := -std=c++17 -Wall -Wno-format-security
 LDFLAGS   := -L/usr/lib -lstdc++ -lm -ldl -lncurses -ltinfo
 SRC 	  := $(wildcard examples/*.cpp)
 TARGETS   := $(SRC:examples/%.cpp=%)
