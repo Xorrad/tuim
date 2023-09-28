@@ -8,6 +8,9 @@ int main(int argc, char* argv[])
     tuim::init(argc, argv);
     tuim::set_title("tuim demo");
 
+    keypad(stdscr, true);
+    noecho();
+
     tuim::keyboard::key key;
     int a = 0;
 
@@ -16,32 +19,32 @@ int main(int argc, char* argv[])
         if(a < 2) {
             a++;
         } else {
+            // key = getch();
             key = tuim::keyboard::get_pressed();
             a = 1;
         }
 
         tuim::clear();
+        
         tuim::update(key);
 
-        tuim::button("#b0", "&_c&atest2&r");
-        tuim::button("#b0.1", "&_c&atest2.1&r\n");
-        tuim::text("#t4", "hello world\n");
+        tuim::button("#b0", "test2\n");
+        tuim::button("#b0.1", "test2.1\n");
 
-        if(tuim::button("#b1", "&_c&6test1&r\n")) {
+        tuim::text("#t4", "\nhello world\n");
+        tuim::text("#t3", "hovered :" + std::to_string(tuim::ctx->hovered_id) + "\n\n");
+
+        if(tuim::button("#b1", "test1\n"))
             tuim::text("#t1", "\tpressed\n");
-        }
 
-        tuim::text("#t3", "\nhovered :" + std::to_string(tuim::ctx->hovered_id) + "\n\n");
-
-        tuim::button("#b2", "&_c&atest2&r\n");
-        if(tuim::button("#b3", "&_c&5exit&r\n"))
+        if(tuim::button("#b3", "exit\n"))
             break;
         
         refresh();
 
-        usleep(1000 * 100);
+        // usleep(1000 * 100);
 
-    } while(key != tuim::keyboard::ESCAPE);
+    } while(key != 27);
 
     tuim::delete_context();
 

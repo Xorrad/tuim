@@ -44,6 +44,8 @@
 #define TUIM_COLOR_BACKGROUND '_'
 #define TUIM_COLOR_CUSTOM '#'
 
+#define TUIM_MAKE_KEY(a, b, c) (a<<16) + (b<<8) + c
+
 namespace tuim {
 
     /* Forward declarations for ui */
@@ -75,13 +77,26 @@ namespace tuim {
 
         enum key {
             NONE = 0,
-            ESCAPE = 27,
-            BACKSPACE = 127,
             ENTER = 10,
-            UP = (27<<16) + (91<<8) + 65,
-            DOWN = (27<<16) + (91<<8) + 66,
-            RIGHT = (27<<16) + (91<<8) + 67,
-            LEFT = (27<<16) + (91<<8) + 68,
+            ESCAPE = 27,
+            UP = TUIM_MAKE_KEY(27, 91, 'A'),
+            DOWN = TUIM_MAKE_KEY(27, 91, 'B'),
+            RIGHT = TUIM_MAKE_KEY(27, 91, 'C'),
+            LEFT = TUIM_MAKE_KEY(27, 91, 'D'),
+            END = TUIM_MAKE_KEY(27, 79, 'F'),
+            HOME = TUIM_MAKE_KEY(27, 79, 'H'),
+            F1 = TUIM_MAKE_KEY(27, 79, 80),
+            F2 = TUIM_MAKE_KEY(27, 79, 81),
+            F3 = TUIM_MAKE_KEY(27, 79, 82),
+            F4 = TUIM_MAKE_KEY(27, 79, 83),
+            F5 = TUIM_MAKE_KEY(27, 79, 84),
+            F6 = TUIM_MAKE_KEY(27, 79, 85),
+            F7 = TUIM_MAKE_KEY(27, 79, 86),
+            F8 = TUIM_MAKE_KEY(27, 79, 87),
+            F9 = TUIM_MAKE_KEY(27, 79, 89),
+            F10 = TUIM_MAKE_KEY(27, 79, 90),
+            F11 = TUIM_MAKE_KEY(27, 79, 91),
+            F12 = TUIM_MAKE_KEY(27, 79, 92),
             A = 97,
             B = 98,
             C = 99,
@@ -107,10 +122,12 @@ namespace tuim {
             W = 119,
             X = 120,
             Y = 121,
-            Z = 122
+            Z = 122,
+            BACKSPACE = 127
             /* To complete */
         };
 
+        key from_curses(int key);
         key get_pressed(); /* Get pressed key */
         bool is_pressed(); /* Check if key has been pressed */
 
@@ -151,7 +168,7 @@ namespace tuim {
         item_id last_active_id;
         item_id hovered_id;
 
-        keyboard::key pressed_key;
+        tuim::keyboard::key pressed_key;
 
         std::vector<item> items_stack;
         std::vector<container> containers_stack;
@@ -167,7 +184,7 @@ namespace tuim {
             last_active_id = 0;
             hovered_id = 0;
 
-            pressed_key = keyboard::key::NONE;
+            pressed_key = tuim::keyboard::NONE;
 
             items_stack = std::vector<item>(0);
             containers_stack = std::vector<container>{ container{{0, 0}} };
@@ -202,7 +219,7 @@ namespace tuim {
     bool was_item_active(); /* Return true if the last pushed item was active on previous tick */
     bool is_item_active(); /* Determine if last pushed item is active */
     bool is_item_hovered(); /* Determine if last pushed item is hovered */
-    bool is_pressed(keyboard::key key); /* Determine if a specified key has been pressed */
+    bool is_pressed(tuim::keyboard::key key); /* Determine if a specified key has been pressed */
     bool has_hoverable(); /* Determine if an hoverable item has been pushed */
 
     void set_active_id(item_id id); /* Set an item as active */
@@ -211,7 +228,7 @@ namespace tuim {
     void add_item(item item); /* Push a new item */
     void remove_item(item_id id); /* Remove an item */
 
-    void update(keyboard::key key); /* Update the items */
+    void update(tuim::keyboard::key key); /* Update the items */
     void display(); /* Display pushed items */
 
     int calc_text_width(const std::string &str, int padding = 0); /* Compute a text width with padding*/
@@ -348,7 +365,7 @@ void tuim::clear_line() {
 
 void tuim::print_to_screen(const std::string& str)
 {
-    printw("%s\33[0m", str.c_str());
+    printw("%s", str.c_str());
 }
 
 template<typename ... Args>
@@ -423,7 +440,7 @@ bool tuim::is_item_hovered() {
     return ctx->hovered_id == tuim::get_id();
 }
 
-bool tuim::is_pressed(keyboard::key key) {
+bool tuim::is_pressed(tuim::keyboard::key key) {
     tuim::context* ctx = tuim::get_context();
     return ctx->pressed_key == key;
 }
@@ -461,7 +478,7 @@ void tuim::remove_item(item_id id) {
     }
 }
 
-void tuim::update(keyboard::key key) {
+void tuim::update(tuim::keyboard::key key) {
     tuim::context* ctx = tuim::get_context();
     ctx->pressed_key = key;
 
@@ -487,7 +504,8 @@ void tuim::update(keyboard::key key) {
         }
 
         /* Move cursor to previous hoverable item */
-        if(key == tuim::keyboard::UP) {
+        // if(key == tuim::keyboard::UP) {
+        if(key == keyboard::UP) {
             if(tuim::has_hoverable()) {
                 tuim::item_id id = 0;
                 if(hovered_index != -1) {
@@ -501,7 +519,8 @@ void tuim::update(keyboard::key key) {
         }
 
         /* Move cursor to next hoverable item */
-        if(key == tuim::keyboard::DOWN) {
+        // if(key == tuim::keyboard::DOWN) {
+        if(key == keyboard::DOWN) {
             if(tuim::has_hoverable()) {
                 tuim::item_id id = 0;
                 if(hovered_index != -1) {
@@ -608,7 +627,7 @@ bool tuim::button(std::string id, std::string text, button_flags flags) {
     tuim::add_item(item);
 
     if(tuim::is_item_hovered()) {
-        if(tuim::is_pressed(keyboard::key::ENTER)) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
             tuim::set_active_id(button_id);
         }
         tuim::print("[x] ");
@@ -628,7 +647,7 @@ void tuim::text(std::string id, std::string text) {
     vec2 pos = calc_relative_position();
 
     tuim::print(text.c_str());
-    tuim::print("\n");
+    // tuim::print("\n");
 }
 
 
@@ -638,28 +657,28 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
     tuim::add_item(item);
 
     if(tuim::is_item_active()) {
-        if(tuim::is_pressed(tuim::keyboard::UP)) {
+        if(tuim::is_pressed(keyboard::UP)) {
             *cursor = std::max(0, *cursor - 1);
         }
-        if(tuim::is_pressed(tuim::keyboard::DOWN)) {
+        if(tuim::is_pressed(keyboard::DOWN)) {
             *cursor = std::min(*cursor + 1, (int) rows.size()-1);
         }
-        if(tuim::is_pressed(tuim::keyboard::ENTER)) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
             //row clicked
         }
 
-        if(tuim::is_pressed(tuim::keyboard::LEFT)) {
+        if(tuim::is_pressed(keyboard::LEFT)) {
             *key = std::max(0, *key - 1);
         }
-        if(tuim::is_pressed(tuim::keyboard::RIGHT)) {
+        if(tuim::is_pressed(keyboard::RIGHT)) {
             *key = std::min(*key + 1, (int) columns.size()-1);
         }
 
-        if(tuim::is_pressed(tuim::keyboard::BACKSPACE)) tuim::set_active_id(0);
+        if(tuim::is_pressed(keyboard::BACKSPACE)) tuim::set_active_id(0);
     }
 
     if(tuim::is_item_hovered()) {
-        if(tuim::is_pressed(tuim::keyboard::key::ENTER)) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
             tuim::set_active_id(item_id);
         }
         if(tuim::is_item_active()) tuim::print("[*]\n");
@@ -836,44 +855,94 @@ void tuim::impl::add_printing_info(const std::string &str) {
     ctx->printings_stack.push_back(tuim::printing_info{pos, width});
 }
 
-tuim::keyboard::key tuim::keyboard::get_pressed() {
-    #ifdef __linux__
-        int count = 0;
-        int codes[3] = { 0, 0, 0 };
+tuim::keyboard::key tuim::keyboard::from_curses(int key)
+{
+    switch(key)
+    {
+        case KEY_DOWN: /* down-arrow key */
+            return DOWN;
+        case KEY_UP: /* up-arrow key */
+            return UP;
+        case KEY_LEFT: /* left-arrow key */
+            return LEFT;
+        case KEY_RIGHT: /* right-arrow key */
+            return RIGHT;
+        case KEY_HOME: /* home key */
+            return HOME;
+        case KEY_BACKSPACE: /* backspace key */
+            return BACKSPACE;
+        case KEY_F(1):
+            return F1;
+        case KEY_F(2):
+            return F2;
+        case KEY_F(3):
+            return F3;
+        case KEY_F(4):
+            return F4;
+        case KEY_F(5):
+            return F5;
+        case KEY_F(6):
+            return F6;
+        case KEY_F(7):
+            return F7;
+        case KEY_F(8):
+            return F8;
+        case KEY_F(9):
+            return F9;
+        case KEY_F(10):
+            return F10;
+        case KEY_F(11):
+            return F11;
+        case KEY_F(12):
+            return F12;
+    }
 
-        /* Loop for escaped characters */
-        do {
-            char buf;
-            struct termios old;
-            fflush(stdout);
-            if(tcgetattr(0, &old) < 0)
-                perror("tcsetattr()");
-            old.c_lflag &= ~ICANON;
-            old.c_lflag &= ~ECHO;
-            old.c_cc[VMIN] = 1;
-            old.c_cc[VTIME] = 0;
-            if(tcsetattr(0, TCSANOW, &old) < 0)
-                perror("tcsetattr ICANON");
-            if(read(0, &buf, 1) < 0)
-                perror("read()");
-            old.c_lflag |= ICANON;
-            old.c_lflag |= ECHO;
-            if(tcsetattr(0, TCSADRAIN, &old) < 0)
-                perror("tcsetattr ~ICANON");
-            codes[count] = (int) buf;
-            count++;
-        } while(tuim::keyboard::is_pressed());
-
-        /* Get the final key code */
-        unsigned int code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + codes[2];
-        return (tuim::keyboard::key) code;
-
-    #elif _WIN32
-
-    #else
-
-    #endif
+    return (tuim::keyboard::key) key;
 }
+
+tuim::keyboard::key tuim::keyboard::get_pressed() {
+    return from_curses(getch());
+}
+
+// tuim::keyboard::key tuim::keyboard::get_pressed() {
+//     #ifdef __linux__
+//         int count = 0;
+//         int codes[3] = { 0, 0, 0 };
+
+//         /* Loop for escaped characters */
+//         do {
+//             char buf;
+//             struct termios old;
+//             fflush(stdout);
+//             if(tcgetattr(0, &old) < 0)
+//                 perror("tcsetattr()");
+//             old.c_lflag &= ~ICANON;
+//             old.c_lflag &= ~ECHO;
+//             old.c_cc[VMIN] = 1;
+//             old.c_cc[VTIME] = 0;
+//             if(tcsetattr(0, TCSANOW, &old) < 0)
+//                 perror("tcsetattr ICANON");
+//             if(read(0, &buf, 1) < 0)
+//                 perror("read()");
+//             old.c_lflag |= ICANON;
+//             old.c_lflag |= ECHO;
+//             if(tcsetattr(0, TCSADRAIN, &old) < 0)
+//                 perror("tcsetattr ~ICANON");
+//             codes[count] = (int) buf;
+//             printw("[%d] %d\n", count, codes[count]);
+//             count++;
+//         } while(tuim::keyboard::is_pressed());
+
+//         /* Get the final key code */
+//         unsigned int code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + codes[2];
+//         return (tuim::keyboard::key) code;
+
+//     #elif _WIN32
+
+//     #else
+
+//     #endif
+// }
 
 bool tuim::keyboard::is_pressed() {
     #ifdef __linux__ 
