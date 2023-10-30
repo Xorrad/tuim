@@ -8,9 +8,6 @@ int main(int argc, char* argv[])
     tuim::init(argc, argv);
     tuim::set_title("tuim demo");
 
-    keypad(stdscr, true);
-    noecho();
-
     tuim::keyboard::key key;
     int a = 0;
 
@@ -39,8 +36,6 @@ int main(int argc, char* argv[])
 
         if(tuim::button("#b3", "exit\n"))
             break;
-        
-        refresh();
 
         // usleep(1000 * 100);
 

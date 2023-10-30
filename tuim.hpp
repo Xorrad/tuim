@@ -12,8 +12,6 @@
 #ifndef TUIM_CPP
 #define TUIM_CPP
 
-#define TUIM_IMPL_NCURSES
-
 #include <iostream>
 #include <string.h>
 #include <filesystem>
@@ -23,19 +21,12 @@
 #include <memory>
 #include <sstream>
 
-#include <ncurses.h>
-
 #ifdef __linux__
-
 #include <unistd.h>
-
 #include <termios.h>
 #include <sys/ioctl.h>
-
 #elif _WIN32
-
 #include <windows.h>
-
 #else
 
 #endif
@@ -127,7 +118,6 @@ namespace tuim {
             /* To complete */
         };
 
-        key from_curses(int key);
         key get_pressed(); /* Get pressed key */
         bool is_pressed(); /* Check if key has been pressed */
 
@@ -176,10 +166,6 @@ namespace tuim {
         std::vector<printing_info> printings_stack; /* Store what has been drawn by the last item */
 
         context() {
-            initscr();
-            curs_set(0);
-            noecho();
-
             active_id = 0;
             last_active_id = 0;
             hovered_id = 0;
@@ -200,6 +186,7 @@ namespace tuim {
     void create_context(); /* Create the global gui context */
     void delete_context(); /* Delete the global gui context */
 
+    void set_cursor_visible(bool cursor); /* Set the terminal cursor visible */
     void set_title(std::string title); /* Set terminal title */
     void set_cursor(vec2 pos); /* Change terminal cursor position */
     vec2 get_cursor(); /* Get terminal cursor position */
@@ -328,8 +315,12 @@ void tuim::create_context() {
 }
 
 void tuim::delete_context() {
-    endwin();
     delete tuim::ctx;
+}
+
+void tuim::set_cursor_visible(bool cursor)
+{
+    printf("\033[?25l");
 }
 
 void tuim::set_title(std::string title) {
@@ -338,12 +329,12 @@ void tuim::set_title(std::string title) {
 }
 
 void tuim::set_cursor(vec2 pos) {
-    move(pos.y, pos.x);
+    printf("\033[%d;%df", pos.y, pos.x);
 }
 
 tuim::vec2 tuim::get_cursor() {
     vec2 pos;
-    getyx(stdscr, pos.y, pos.x);
+    // TODO
     return pos;
 }
 
@@ -352,20 +343,19 @@ void tuim::newline() {
 }
 
 void tuim::clear() {
-    erase();
+    printf("\033[2J\033[H");
     ctx->pressed_key = tuim::keyboard::NONE;
 }
 
 void tuim::clear_line() {
     vec2 pos = get_cursor();
+    printf("\033[2K");
     set_cursor({pos.y, 0});
-    clrtoeol();
-    set_cursor(pos);
 }
 
 void tuim::print_to_screen(const std::string& str)
 {
-    printw("%s", str.c_str());
+    printf("%s", str.c_str());
 }
 
 template<typename ... Args>
@@ -855,94 +845,45 @@ void tuim::impl::add_printing_info(const std::string &str) {
     ctx->printings_stack.push_back(tuim::printing_info{pos, width});
 }
 
-tuim::keyboard::key tuim::keyboard::from_curses(int key)
-{
-    switch(key)
-    {
-        case KEY_DOWN: /* down-arrow key */
-            return DOWN;
-        case KEY_UP: /* up-arrow key */
-            return UP;
-        case KEY_LEFT: /* left-arrow key */
-            return LEFT;
-        case KEY_RIGHT: /* right-arrow key */
-            return RIGHT;
-        case KEY_HOME: /* home key */
-            return HOME;
-        case KEY_BACKSPACE: /* backspace key */
-            return BACKSPACE;
-        case KEY_F(1):
-            return F1;
-        case KEY_F(2):
-            return F2;
-        case KEY_F(3):
-            return F3;
-        case KEY_F(4):
-            return F4;
-        case KEY_F(5):
-            return F5;
-        case KEY_F(6):
-            return F6;
-        case KEY_F(7):
-            return F7;
-        case KEY_F(8):
-            return F8;
-        case KEY_F(9):
-            return F9;
-        case KEY_F(10):
-            return F10;
-        case KEY_F(11):
-            return F11;
-        case KEY_F(12):
-            return F12;
-    }
-
-    return (tuim::keyboard::key) key;
-}
-
 tuim::keyboard::key tuim::keyboard::get_pressed() {
-    return from_curses(getch());
+    #ifdef __linux__
+        int count = 0;
+        int codes[3] = { 0, 0, 0 };
+
+        /* Loop for escaped characters */
+        do {
+            char buf;
+            struct termios old;
+            fflush(stdout);
+            if(tcgetattr(0, &old) < 0)
+                perror("tcsetattr()");
+            old.c_lflag &= ~ICANON;
+            old.c_lflag &= ~ECHO;
+            old.c_cc[VMIN] = 1;
+            old.c_cc[VTIME] = 0;
+            if(tcsetattr(0, TCSANOW, &old) < 0)
+                perror("tcsetattr ICANON");
+            if(read(0, &buf, 1) < 0)
+                perror("read()");
+            old.c_lflag |= ICANON;
+            old.c_lflag |= ECHO;
+            if(tcsetattr(0, TCSADRAIN, &old) < 0)
+                perror("tcsetattr ~ICANON");
+            codes[count] = (int) buf;
+            // printf("[%d] %d\n", count, codes[count]);
+            count++;
+        } while(tuim::keyboard::is_pressed());
+
+        /* Get the final key code */
+        unsigned int code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + codes[2];
+        return (tuim::keyboard::key) code;
+
+    #elif _WIN32
+
+    #else
+
+    #endif
 }
-
-// tuim::keyboard::key tuim::keyboard::get_pressed() {
-//     #ifdef __linux__
-//         int count = 0;
-//         int codes[3] = { 0, 0, 0 };
-
-//         /* Loop for escaped characters */
-//         do {
-//             char buf;
-//             struct termios old;
-//             fflush(stdout);
-//             if(tcgetattr(0, &old) < 0)
-//                 perror("tcsetattr()");
-//             old.c_lflag &= ~ICANON;
-//             old.c_lflag &= ~ECHO;
-//             old.c_cc[VMIN] = 1;
-//             old.c_cc[VTIME] = 0;
-//             if(tcsetattr(0, TCSANOW, &old) < 0)
-//                 perror("tcsetattr ICANON");
-//             if(read(0, &buf, 1) < 0)
-//                 perror("read()");
-//             old.c_lflag |= ICANON;
-//             old.c_lflag |= ECHO;
-//             if(tcsetattr(0, TCSADRAIN, &old) < 0)
-//                 perror("tcsetattr ~ICANON");
-//             codes[count] = (int) buf;
-//             printw("[%d] %d\n", count, codes[count]);
-//             count++;
-//         } while(tuim::keyboard::is_pressed());
-
-//         /* Get the final key code */
-//         unsigned int code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + codes[2];
-//         return (tuim::keyboard::key) code;
-
-//     #elif _WIN32
-
-//     #else
-
-//     #endif
-// }
 
 bool tuim::keyboard::is_pressed() {
     #ifdef __linux__ 
