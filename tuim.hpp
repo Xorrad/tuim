@@ -311,15 +311,16 @@ void tuim::init(int argc, char* argv[]) {
 }
 
 void tuim::create_context() {
+    printf("\033[?1049h");
     tuim::ctx = new tuim::context();
 }
 
 void tuim::delete_context() {
     delete tuim::ctx;
+    printf("\033[?1049l");
 }
 
-void tuim::set_cursor_visible(bool cursor)
-{
+void tuim::set_cursor_visible(bool cursor) {
     printf("\033[?25l");
 }
 
