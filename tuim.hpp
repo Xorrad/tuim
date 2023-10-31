@@ -123,6 +123,58 @@ namespace tuim {
 
     }
 
+    namespace color {
+
+        /* Structure to store rgb color codes */
+        struct color {
+            int r;
+            int g;
+            int b;
+            bool background;
+        };
+
+        color from_code(std::string str); /* Convert string color code to rgb */
+        color from_hex(std::string str); /* Convert string hexadecimal color code to rgb */
+        color from_hex(unsigned int hex); /* Convert hexadecimal color code to rgb */
+        unsigned int to_hex(color color); /* Convert rgb color code to hexadecimal*/
+        std::string to_ansi(color color); /* Convert rgb color to ansi color */
+    }
+
+    namespace font {
+        
+        enum class mode {
+            RESET = 0,
+            BOLD = 1,
+            DIM = 2,
+            ITALIC = 3,
+            UNDERLINE = 4,
+            BLINKING = 5,
+            INVERSE = 7,
+            HIDDEN = 8,
+            STRIKETHROUGH = 9
+        };
+
+        enum class style_type {
+            COLOR,
+            MODE
+        };
+
+        struct style {
+            style_type type;
+            union {
+                color::color style_color;
+                mode style_mode;
+            };
+        };
+
+        void register_style(const std::string &code, const style &style);
+
+        mode from_code(const std::string &str);
+        std::string to_ansi(mode mode, bool enabled);
+        style make_style(color::color color);
+        style make_style(mode mode);
+    }
+
     /* User interface components are defined here */
     enum item_flags_ {
         ITEM_FLAGS_NONE = 0,
@@ -158,7 +210,11 @@ namespace tuim {
         item_id last_active_id;
         item_id hovered_id;
 
-        tuim::keyboard::key pressed_key;
+        keyboard::key pressed_key;
+
+        std::map<std::string, font::style> style_codes;
+        std::map<font::mode, bool> style_modes;
+        std::map<bool, color::color> style_colors;
 
         std::vector<item> items_stack;
         std::vector<container> containers_stack;
@@ -171,6 +227,20 @@ namespace tuim {
             hovered_id = 0;
 
             pressed_key = tuim::keyboard::NONE;
+
+            style_codes = {
+                { "r", font::make_style(font::mode::RESET) },
+                { "b", font::make_style(font::mode::BOLD) },
+                { "d", font::make_style(font::mode::DIM) },
+                { "i", font::make_style(font::mode::ITALIC) },
+                { "u", font::make_style(font::mode::UNDERLINE) },
+                { "g", font::make_style(font::mode::BLINKING) },
+                { "n", font::make_style(font::mode::INVERSE) },
+                { "h", font::make_style(font::mode::HIDDEN) },
+                { "s", font::make_style(font::mode::STRIKETHROUGH) }
+            };
+            style_modes = {};
+            style_colors = {};
 
             items_stack = std::vector<item>(0);
             containers_stack = std::vector<container>{ container{{0, 0}} };
@@ -240,61 +310,13 @@ namespace tuim {
     /* Internals are defined within this namespace */
     namespace impl {
         void open_terminal(); /* Restart program in a separate terminal */
-
-        std::string format(const std::string &str); /* Format a string for printing */
-
         void add_printing_info(const std::string &str); /* Log a printing into the stack */
     }
 
     namespace string {
         size_t length(const std::string &str);
         std::string fill(const std::string &str, size_t length);
-    }
-
-    namespace color {
-
-        /* Structure to store rgb color codes */
-        struct color {
-            int r;
-            int g;
-            int b;
-            bool background;
-        };
-
-        color from_code(std::string str); /* Convert string color code to rgb */
-        color from_hex(std::string str); /* Convert string hexadecimal color code to rgb */
-        color from_hex(unsigned int hex); /* Convert hexadecimal color code to rgb */
-        unsigned int to_hex(color color); /* Convert rgb color code to hexadecimal*/
-        std::string to_ansi(color color); /* Convert rgb color to ansi color */
-
-        /**
-         * Using minecraft color codes
-         * https://htmlcolorcodes.com/minecraft-color-codes/
-        */
-        const std::map<std::string, color> codes = {
-            { "0", from_hex(0x000000) }, /* BLACK */
-            { "1", from_hex(0x0000AA) }, /* DARK_BLUE */
-            { "2", from_hex(0x00AA00) }, /* DARK_GREEN */
-            { "3", from_hex(0x00AAAA) }, /* DARK_AQUA */
-            { "4", from_hex(0xAA0000) }, /* DARK_RED */
-            { "5", from_hex(0xAA00AA) }, /* DARK_PURPLE */
-            { "6", from_hex(0xFFAA00) }, /* GOLD */
-            { "7", from_hex(0xAAAAAA) }, /* GREY */
-            { "8", from_hex(0x555555) }, /* DARK_GREY */
-            { "9", from_hex(0x5555FF) }, /* BLUE*/
-            { "a", from_hex(0x55FF55) }, /* GREEN */
-            { "b", from_hex(0x55FFFF) }, /* AQUA */
-            { "c", from_hex(0xFF5555) }, /* RED */
-            { "d", from_hex(0xFF55FF) }, /* LIGHT_PURPLE */
-            { "e", from_hex(0xFFFF55) }, /* YELLOW */
-            { "f", from_hex(0xFFFFFF) }, /* WHITE */
-
-            { "l", from_hex(0x000001) }, /* BOLD */
-            { "o", from_hex(0x000002) }, /* ITALIC */
-            { "n", from_hex(0x000003) }, /* UNDERLINED */
-
-            { "r", from_hex(0x000000) } /* RESET */
-        };
+        std::string parse_styles(const std::string &str); /* Replace style codes with ansi escape sequences */
     }
 
 }
@@ -344,7 +366,11 @@ void tuim::newline() {
 }
 
 void tuim::clear() {
-    printf("\033[2J\033[H");
+    printf("\033[0m\033[2J\033[H");
+    // for(auto&[background, color] : ctx->style_colors)
+    //     printf(color::to_ansi(color).c_str());
+    // for(auto&[mode, enabled] : ctx->style_modes)
+    //     printf(font::to_ansi(mode, enabled).c_str());
     ctx->pressed_key = tuim::keyboard::NONE;
 }
 
@@ -369,13 +395,13 @@ void tuim::print(const char* fmt, Args ... args) {
 
     std::snprintf(buf.get(), size, fmt, args...);
 
-    std::string formatted = std::string( buf.get(), buf.get() + size - 1);
-    formatted = tuim::impl::format(formatted);
+    std::string parsed = std::string( buf.get(), buf.get() + size - 1);
+    parsed = tuim::string::parse_styles(parsed);
 
-    /* Print formatted text and reset colors and styles */
-    print_to_screen(formatted);
+    /* Print formatted text */
+    print_to_screen(parsed);
 
-    int width = calc_text_width(formatted);
+    int width = calc_text_width(parsed);
     
     vec2 pos = get_container().cursor_pos;
     pos.x += width;
@@ -772,71 +798,6 @@ void tuim::impl::open_terminal() {
     exit(EXIT_SUCCESS);
 }
 
-std::string tuim::impl::format(const std::string &str) {
-    bool escaped = false;
-    std::string formatted = "";
-
-    for(size_t i = 0; i < str.length(); i++) {
-
-        /* Skip if character is escaped */
-        if(escaped) {
-            /* Add an anti-slash there was not any color code to escape */
-            if(str[i] != TUIM_COLOR_FOREGROUND && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') formatted += "\\";
-
-            formatted += str[i];
-            escaped = false;
-            continue;
-        }
-
-        if(str[i] == '\\') {
-            escaped = true;
-            continue;
-        }
-
-        /* Check for minecraft color codes */
-        if(str[i] == TUIM_COLOR_FOREGROUND) {
-            size_t code_length = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 2 : 1;
-            if(str.length() - i < code_length) continue;
-
-            std::string code = str.substr(i + 1, code_length);
-
-            if(strcmp(code.c_str(), "l") == 0) { /* Check if bold code */
-                formatted += "\33[1m";
-            } else if(strcmp(code.c_str(), "o") == 0) { /* Check if italic code */
-                formatted += "\33[3m";
-            } else if(strcmp(code.c_str(), "n") == 0) { /* Check if underline code */
-                formatted += "\33[4m";
-            } else if(strcmp(code.c_str(), "r") == 0) { /* Check if reset code */
-                formatted += "\33[0m";
-            } else {
-                tuim::color::color color = tuim::color::from_code(code);
-                formatted += tuim::color::to_ansi(color);
-            }
-            
-            i += code_length;
-            continue;
-        }
-
-        /* Check for custom color codes */
-        if(str[i] == TUIM_COLOR_CUSTOM) {
-            size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 7 : 6;
-            if(str.length() - i < code_length) continue;
-
-            std::string code = str.substr(i + 1, code_length);
-
-            tuim::color::color color = tuim::color::from_hex(code);
-            formatted += tuim::color::to_ansi(color);
-
-            i += code_length;
-            continue;
-        }
-
-        formatted += str[i];
-    }
-
-    return formatted;
-}
-
 void tuim::impl::add_printing_info(const std::string &str) {
     tuim::context *ctx = tuim::get_context();
 
@@ -929,19 +890,137 @@ std::string tuim::string::fill(const std::string &str, size_t length) {
     return res;
 }
 
+std::string tuim::string::parse_styles(const std::string &str) {
+    context* ctx = get_context();
+    bool escaped = false;
+    std::string parsed = "";
+
+    for(size_t i = 0; i < str.length(); i++) {
+
+        /* Skip if character is escaped */
+        if(escaped) {
+            /* Add an anti-slash there was not any color code to escape */
+            if(str[i] != TUIM_COLOR_FOREGROUND && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') parsed += "\\";
+
+            parsed += str[i];
+            escaped = false;
+            continue;
+        }
+
+        if(str[i] == '\\') {
+            escaped = true;
+            continue;
+        }
+
+        /* Check for minecraft color codes */
+        if(str[i] == TUIM_COLOR_FOREGROUND) {
+            bool background = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND);
+            size_t code_length = background ? 2 : 1;
+            if(str.length() - i < code_length) continue;
+
+            std::string raw_code = str.substr(i + 1 + background, 1);
+            std::string code = str.substr(i + 1, code_length);
+
+            // TODO: handle exception if code doesn't exist.
+            if(ctx->style_codes.count(raw_code) == 0)
+                throw std::runtime_error("Error: color code " + raw_code + " doesn't exist!");
+
+            font::style style = ctx->style_codes.at(raw_code);
+
+            switch(style.type) {
+                case font::style_type::COLOR: {
+                    color::color color = color::from_code(code);
+                    parsed += color::to_ansi(color);
+                    ctx->style_colors.emplace(color.background, color);
+                }
+                    break;
+                case font::style_type::MODE:
+                    code = raw_code;
+                    bool enabled = true;
+                    font::mode mode = font::from_code(code);
+                    if(ctx->style_modes.count(mode))
+                    {
+                        enabled = false;
+                        ctx->style_modes.erase(mode);
+                    }
+                    else
+                    {
+                        ctx->style_modes.emplace(mode, true);
+                    }
+                    if(mode == font::mode::RESET)
+                    {
+                        ctx->style_colors.clear();
+                        ctx->style_modes.clear();
+                    }
+                    parsed += font::to_ansi(mode, enabled);
+                    break;
+            }
+            
+            i += code_length;
+            continue;
+        }
+
+        /* Check for custom color codes */
+        if(str[i] == TUIM_COLOR_CUSTOM) {
+            size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 7 : 6;
+            if(str.length() - i < code_length) continue;
+
+            std::string code = str.substr(i + 1, code_length);
+
+            tuim::color::color color = tuim::color::from_hex(code);
+            parsed += tuim::color::to_ansi(color);
+
+            i += code_length;
+            continue;
+        }
+
+        parsed += str[i];
+    }
+
+    return parsed;
+}
+
+void tuim::font::register_style(const std::string &code, const style &style) {
+    context* ctx = get_context();
+    ctx->style_codes.emplace(code, style);
+}
+
+tuim::font::mode tuim::font::from_code(const std::string &str) {
+    context* ctx = get_context();
+    return ctx->style_codes.at(str).style_mode;
+}
+
+std::string tuim::font::to_ansi(mode mode, bool enabled) {
+    int code = (int) mode;
+    if(!enabled && mode != mode::RESET)
+        code += 21;
+    return "\033[" + std::to_string(code) + "m";
+}
+
+tuim::font::style tuim::font::make_style(color::color color) {
+    style style;
+    style.type = style_type::COLOR;
+    style.style_color = color;
+    return style;
+}
+
+tuim::font::style tuim::font::make_style(mode mode) {
+    style style;
+    style.type = style_type::MODE;
+    style.style_mode = mode;
+    return style;
+}
+
 tuim::color::color tuim::color::from_code(std::string str) {
+    context* ctx = get_context();
+    
     /* Check if there is the background character */
     bool background = (str[0] == TUIM_COLOR_BACKGROUND);
 
-    //printf("(%d) %s\n", background, str.c_str());
-    
     /* Remove background character if there is one */
     if(background) str = str.substr(1, str.length() - 1);
 
-    /* Raise an exception if the color code does not exist */
-    //if(tuim::color::codes.count(str) == 0) throw std::invalid_argument("invalid color code");
-
-    tuim::color::color color = tuim::color::codes.at(str);
+    tuim::color::color color = ctx->style_codes.at(str).style_color;
     color.background = background;
 
     return color;

@@ -8,27 +8,23 @@ int main(int argc, char* argv[])
     tuim::create_context();
     tuim::set_title("test");
 
+    tuim::set_cursor_visible(false);
+    tuim::font::register_style("a", tuim::font::make_style(tuim::color::from_hex(0x55FF55)));
+
     tuim::keyboard::key key;
     double width = 100;
     int cursor = 0;
 
     do {
         tuim::clear();
+        tuim::print("&b&_acursor:&r &a%d&r\n", cursor);
 
-        tuim::set_cursor({10, 200});
-        tuim::clear_line();
-        tuim::print("\r&8&_ccursor:&r &7%d\n", cursor);
+        for(double i = cursor; i < width; i += 0.1) {
 
-        for(double i = cursor; i < cursor + width; i += 0.1) {
-            
-            int r = round(((sin(i/width + i) + 1)/2) * 255.0);
-            int g = round(((cos(i/width + i) + 1)/2) * 255.0);
-            int b = round(((cos(i/width + i) + 1)/2) * 255.0);
-            unsigned int color = (r << 16) + (g << 8) + b;
-            
+            unsigned int color = ((int) (255.0 * (floor(i)/width)) << 8);
+
             if(floor(i) == cursor) color = 0;
 
-            //tuim::move(i, 10);
             tuim::set_cursor({i, 20 + (sin(i/10)*10)});
             tuim::print("#_%06x ", color);
         }
