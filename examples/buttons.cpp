@@ -8,8 +8,11 @@ int main(int argc, char* argv[])
     tuim::init(argc, argv);
     tuim::set_title("tuim demo");
 
+    tuim::set_cursor_visible(false);
+
     tuim::keyboard::key key;
     int a = 0;
+    bool t = false;
 
     do {
         key = tuim::keyboard::NONE;
@@ -31,15 +34,19 @@ int main(int argc, char* argv[])
         tuim::text("#t4", "\nhello world\n");
         tuim::text("#t3", "hovered :" + std::to_string(tuim::ctx->hovered_id) + "\n\n");
 
-        if(tuim::button("#b1", "test1\n"))
-            tuim::text("#t1", "\tpressed\n");
+        if(tuim::button("#b1", "settings\n"))
+            t = !t;
+        if(t) {
+            tuim::print(" "); tuim::button("#b1.1", "sounds\n");
+            tuim::print(" "); tuim::button("#b1.2", "keybinds\n");
+        }
 
         if(tuim::button("#b3", "exit\n"))
             break;
 
         // usleep(1000 * 100);
 
-    } while(key != 27);
+    } while(key != tuim::keyboard::ESCAPE);
 
     tuim::delete_context();
 
