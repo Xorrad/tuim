@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <memory>
 #include <sstream>
+#include <regex>
 
 #ifdef __linux__
 #include <unistd.h>
@@ -31,7 +32,7 @@
 
 #endif
 
-#define TUIM_COLOR_FOREGROUND '&'
+#define TUIM_STYLE_CODE '&'
 #define TUIM_COLOR_BACKGROUND '_'
 #define TUIM_COLOR_CUSTOM '#'
 
@@ -194,7 +195,7 @@ namespace tuim {
     struct container {
         vec2 pos;
         vec2 size;
-        vec2 cursor_pos;
+        vec2 cursor;
 
         container(vec2 pos) : container(pos, {0, 0}) {}
         container(vec2 pos, vec2 size) : pos(pos), size(size) {}
@@ -210,11 +211,12 @@ namespace tuim {
         item_id last_active_id;
         item_id hovered_id;
 
+        vec2 cursor;
+
         keyboard::key pressed_key;
 
         std::map<std::string, font::style> style_codes;
         std::map<font::mode, bool> style_modes;
-        std::map<bool, color::color> style_colors;
 
         std::vector<item> items_stack;
         std::vector<container> containers_stack;
@@ -240,7 +242,6 @@ namespace tuim {
                 { "s", font::make_style(font::mode::STRIKETHROUGH) }
             };
             style_modes = {};
-            style_colors = {};
 
             items_stack = std::vector<item>(0);
             containers_stack = std::vector<container>{ container{{0, 0}} };
@@ -301,6 +302,7 @@ namespace tuim {
     container& get_container();
     void start_container();
     void end_container();
+    void update_container();
 
     void start_column();
     void end_column();
@@ -333,13 +335,14 @@ void tuim::init(int argc, char* argv[]) {
 }
 
 void tuim::create_context() {
-    printf("\033[?1049h");
+    printf("\033[?1049h"); // enable alternate buffer
     tuim::ctx = new tuim::context();
 }
 
 void tuim::delete_context() {
     delete tuim::ctx;
-    printf("\033[?1049l");
+    printf("\033[?1049l"); // disabled alternate buffer
+    set_cursor_visible(true);
 }
 
 void tuim::set_cursor_visible(bool cursor) {
@@ -356,9 +359,8 @@ void tuim::set_cursor(vec2 pos) {
 }
 
 tuim::vec2 tuim::get_cursor() {
-    vec2 pos;
-    // TODO
-    return pos;
+    context* ctx = get_context();
+    return ctx->cursor;
 }
 
 void tuim::newline() {
@@ -367,10 +369,7 @@ void tuim::newline() {
 
 void tuim::clear() {
     printf("\033[0m\033[2J\033[H");
-    // for(auto&[background, color] : ctx->style_colors)
-    //     printf(color::to_ansi(color).c_str());
-    // for(auto&[mode, enabled] : ctx->style_modes)
-    //     printf(font::to_ansi(mode, enabled).c_str());
+    ctx->style_modes.clear();
     ctx->pressed_key = tuim::keyboard::NONE;
 }
 
@@ -382,6 +381,13 @@ void tuim::clear_line() {
 
 void tuim::print_to_screen(const std::string& str)
 {
+    context* ctx = get_context();
+    for(auto& c : str)
+    {
+        if(c == '\n') ctx->cursor.y++;
+        else ctx->cursor.x += string::length(str);
+    }
+    update_container();
     printf("%s", str.c_str());
 }
 
@@ -403,7 +409,7 @@ void tuim::print(const char* fmt, Args ... args) {
 
     int width = calc_text_width(parsed);
     
-    vec2 pos = get_container().cursor_pos;
+    vec2 pos = get_container().cursor;
     pos.x += width;
 
     move_container_cursor(pos);
@@ -559,50 +565,13 @@ void tuim::display() {
 }
 
 int tuim::calc_text_width(const std::string &str, int padding) {
-    int width = tuim::string::length(str) + padding*2;
 
-    /* Remove color tags characters from string length */
-    bool color_escape = false;
-    bool ascii_escape = false;
+    // https://github.com/chalk/ansi-regex/blob/main/index.js
+    static const std::string pattern = "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))";
+    static const std::regex regex(pattern);
+    std::string stripped = std::regex_replace(tuim::string::parse_styles(str), regex, "");
 
-    for(size_t i = 0; i < str.length(); i++) {
-
-        /* Skip if character is escaped */
-        if(color_escape) {
-            color_escape = false;
-            continue;
-        }
-
-        if(str[i] == '\\') {
-            color_escape = true;
-            continue;
-        }
-        
-        if(str[i] == '\033') {
-            ascii_escape = true;
-        }
-        
-        if(ascii_escape) {
-
-            if ((str[i] >= 'A' && str[i] <= 'Z') || (str[i] >= 'a' && str[i] <= 'z'))
-                ascii_escape = false;
-
-            width--;
-            continue;
-        }
-
-        /* Check for minecraft color codes */
-        if(str[i] == TUIM_COLOR_FOREGROUND) {
-            size_t code_length = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 3 : 2;
-            if(str.length() - i >= code_length) width -= code_length;
-        }
-
-        /* Check for custom color codes */
-        if(str[i] == TUIM_COLOR_CUSTOM) {
-            size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 8 : 7;
-            if(str.length() - i >= code_length) width -= code_length;
-        }
-    }
+    int width = tuim::string::length(stripped) + padding*2;
 
     return width;
 }
@@ -633,7 +602,7 @@ tuim::vec2 tuim::calc_relative_position()
 {
     context* ctx = get_context();
     container ctn = ctx->containers_stack.back();
-    vec2 pos = ctn.cursor_pos;
+    vec2 pos = ctn.cursor;
 
     return pos;
 }
@@ -759,15 +728,22 @@ tuim::container& tuim::get_container() {
 
 void tuim::start_container() {
     tuim::context* ctx = tuim::get_context();
-
     tuim::container current_ctn = tuim::get_container();
-    tuim::container ctn = tuim::container{ current_ctn.cursor_pos, {0, 0} };
+    tuim::container ctn = tuim::container{ current_ctn.cursor, {0, 0} };
 
     ctx->containers_stack.push_back(ctn);
 }
 
 void tuim::end_container() {
 
+}
+
+void tuim::update_container() {
+    tuim::context* ctx = tuim::get_context();
+    tuim::container& current_ctn = tuim::get_container();
+    current_ctn.cursor = ctx->cursor;
+    current_ctn.size.x = std::max(current_ctn.size.x, std::abs(current_ctn.cursor.x - current_ctn.pos.x));
+    current_ctn.size.y = std::max(current_ctn.size.y, std::abs(current_ctn.cursor.y - current_ctn.pos.y));
 }
 
 void tuim::start_column() {
@@ -780,7 +756,7 @@ void tuim::end_column() {
 
 void tuim::move_container_cursor(vec2 pos) {
     container& ctn = get_container();
-    ctn.cursor_pos = pos;
+    ctn.cursor = pos;
 }
 
 void tuim::impl::open_terminal() {
@@ -815,21 +791,19 @@ tuim::keyboard::key tuim::keyboard::get_pressed() {
         /* Loop for escaped characters */
         do {
             char buf;
-            struct termios old;
+            struct termios term;
             fflush(stdout);
-            if(tcgetattr(0, &old) < 0)
+            if(tcgetattr(0, &term) < 0)
                 perror("tcsetattr()");
-            old.c_lflag &= ~ICANON;
-            old.c_lflag &= ~ECHO;
-            old.c_cc[VMIN] = 1;
-            old.c_cc[VTIME] = 0;
-            if(tcsetattr(0, TCSANOW, &old) < 0)
+            term.c_lflag &= ~(ICANON | ECHO);
+            term.c_cc[VMIN] = 1;
+            term.c_cc[VTIME] = 0;
+            if(tcsetattr(0, TCSANOW, &term) < 0)
                 perror("tcsetattr ICANON");
             if(read(0, &buf, 1) < 0)
                 perror("read()");
-            old.c_lflag |= ICANON;
-            old.c_lflag |= ECHO;
-            if(tcsetattr(0, TCSADRAIN, &old) < 0)
+            term.c_lflag |= ICANON | ECHO;
+            if(tcsetattr(0, TCSADRAIN, &term) < 0)
                 perror("tcsetattr ~ICANON");
             codes[count] = (int) buf;
             // printf("[%d] %d\n", count, codes[count]);
@@ -900,7 +874,7 @@ std::string tuim::string::parse_styles(const std::string &str) {
         /* Skip if character is escaped */
         if(escaped) {
             /* Add an anti-slash there was not any color code to escape */
-            if(str[i] != TUIM_COLOR_FOREGROUND && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') parsed += "\\";
+            if(str[i] != TUIM_STYLE_CODE && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') parsed += "\\";
 
             parsed += str[i];
             escaped = false;
@@ -912,8 +886,7 @@ std::string tuim::string::parse_styles(const std::string &str) {
             continue;
         }
 
-        /* Check for minecraft color codes */
-        if(str[i] == TUIM_COLOR_FOREGROUND) {
+        if(str[i] == TUIM_STYLE_CODE) {
             bool background = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND);
             size_t code_length = background ? 2 : 1;
             if(str.length() - i < code_length) continue;
@@ -923,7 +896,11 @@ std::string tuim::string::parse_styles(const std::string &str) {
 
             // TODO: handle exception if code doesn't exist.
             if(ctx->style_codes.count(raw_code) == 0)
-                throw std::runtime_error("Error: color code " + raw_code + " doesn't exist!");
+            {
+                parsed += str[i];
+                continue;
+                // throw std::runtime_error("Error: color code " + raw_code + " doesn't exist!");
+            }
 
             font::style style = ctx->style_codes.at(raw_code);
 
@@ -931,7 +908,6 @@ std::string tuim::string::parse_styles(const std::string &str) {
                 case font::style_type::COLOR: {
                     color::color color = color::from_code(code);
                     parsed += color::to_ansi(color);
-                    ctx->style_colors.emplace(color.background, color);
                 }
                     break;
                 case font::style_type::MODE:
@@ -948,10 +924,7 @@ std::string tuim::string::parse_styles(const std::string &str) {
                         ctx->style_modes.emplace(mode, true);
                     }
                     if(mode == font::mode::RESET)
-                    {
-                        ctx->style_colors.clear();
-                        ctx->style_modes.clear();
-                    }
+                        ctx->style_modes.clear(); // TODO: move this to print
                     parsed += font::to_ansi(mode, enabled);
                     break;
             }
@@ -960,7 +933,6 @@ std::string tuim::string::parse_styles(const std::string &str) {
             continue;
         }
 
-        /* Check for custom color codes */
         if(str[i] == TUIM_COLOR_CUSTOM) {
             size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 7 : 6;
             if(str.length() - i < code_length) continue;
@@ -1020,7 +992,7 @@ tuim::color::color tuim::color::from_code(std::string str) {
     /* Remove background character if there is one */
     if(background) str = str.substr(1, str.length() - 1);
 
-    tuim::color::color color = ctx->style_codes.at(str).style_color;
+    color color = ctx->style_codes.at(str).style_color;
     color.background = background;
 
     return color;
@@ -1039,14 +1011,14 @@ tuim::color::color tuim::color::from_hex(std::string str) {
     ss << std::hex << str;
     ss >> hex;
 
-    tuim::color::color color = tuim::color::from_hex(hex);
+    color color = from_hex(hex);
     color.background = background;
 
     return color;
 }
 
 tuim::color::color tuim::color::from_hex(unsigned int hex) {
-    tuim::color::color color;
+    color color;
     color.r = (hex >> 16) & 0xFF;
     color.g = (hex >> 8) & 0xFF;
     color.b = (hex) & 0xFF;
@@ -1054,11 +1026,11 @@ tuim::color::color tuim::color::from_hex(unsigned int hex) {
     return color;
 }
 
-unsigned int tuim::color::to_hex(tuim::color::color color) {
+unsigned int tuim::color::to_hex(color color) {
     return (color.r << 16) + (color.g << 8) + color.b;
 }
 
-std::string tuim::color::to_ansi(tuim::color::color color) {
+std::string tuim::color::to_ansi(color color) {
     /* https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797 */
 
     std::string ansi = "\33[" + std::string(color.background ? "48" : "38") + ";2;";
