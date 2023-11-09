@@ -295,8 +295,10 @@ namespace tuim {
 
     vec2 calc_relative_position(); /* Calculate the coordinates from which to start drawing an item. */
 
-    bool button(std::string id, std::string text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
     void text(std::string id, std::string text); /* Display text */
+    void text(std::string id); /* Display text */
+    bool button(std::string id, std::string text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
+    template <typename T> bool slider(std::string id, T* value, T min, T max, T step); /* Display a number slider */
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
     container& get_container();
@@ -607,14 +609,29 @@ tuim::vec2 tuim::calc_relative_position()
     return pos;
 }
 
+void tuim::text(std::string id, std::string text) {
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_DISABLED };
+    tuim::add_item(item);
+
+    // vec2 pos = calc_relative_position();
+
+    tuim::print(text.c_str());
+    // tuim::print("\n");
+}
+
+void tuim::text(std::string text) {
+    tuim::item item = tuim::item{ tuim::str_to_id(text), tuim::item_flags_::ITEM_FLAGS_DISABLED };
+    tuim::add_item(item);
+    tuim::print(text.c_str());
+}
+
 bool tuim::button(std::string id, std::string text, button_flags flags) {
-    tuim::item_id button_id = tuim::str_to_id(id);
-    tuim::item item = tuim::item{ button_id, 0 };
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
     if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::ENTER)) {
-            tuim::set_active_id(button_id);
+            tuim::set_active_id(item.id);
         }
         tuim::print("[x] ");
     }
@@ -625,21 +642,42 @@ bool tuim::button(std::string id, std::string text, button_flags flags) {
     return tuim::is_item_active();
 }
 
-void tuim::text(std::string id, std::string text) {
-    tuim::item_id button_id = tuim::str_to_id(id);
-    tuim::item item = tuim::item{ button_id, tuim::item_flags_::ITEM_FLAGS_DISABLED };
+template <typename T>
+bool tuim::slider(std::string id, T* value, T min, T max, T step) {
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
 
-    vec2 pos = calc_relative_position();
+    if(tuim::is_item_active()) {
+        if(tuim::is_pressed(keyboard::LEFT)) {
+            *value = std::max(min, *value - step);
+        }
+        else if(tuim::is_pressed(keyboard::RIGHT)) {
+            *value = std::min(max, *value + step);
+        }
+        else if(tuim::is_pressed(keyboard::BACKSPACE)) tuim::set_active_id(0);
+    }
 
-    tuim::print(text.c_str());
-    // tuim::print("\n");
+    if(tuim::is_item_hovered()) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
+            tuim::set_active_id(item.id);
+        }
+        if(tuim::is_item_active()) tuim::print("[*]\n");
+        else tuim::print("[x]\n");
+    }
+    else tuim::print("[ ]\n");
+
+    tuim::print("#555555"); // Push grey color
+    for(T t = min+step; t <= max; t += step) {
+        if(*value < t) tuim::print("&r");
+        tuim::print("█");
+    }
+    tuim::print("&r %s", std::to_string(*value).c_str());
+
+    return tuim::is_item_active();
 }
 
-
 void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding) {
-    tuim::item_id item_id = tuim::str_to_id(id);
-    tuim::item item = tuim::item{ item_id, tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
 
     if(tuim::is_item_active()) {
@@ -665,7 +703,7 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
 
     if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::ENTER)) {
-            tuim::set_active_id(item_id);
+            tuim::set_active_id(item.id);
         }
         if(tuim::is_item_active()) tuim::print("[*]\n");
         else tuim::print("[x]\n");
