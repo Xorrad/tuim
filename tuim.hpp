@@ -67,6 +67,8 @@ namespace tuim {
     /* Keyboard related functions are defined here */
     namespace keyboard {
 
+        typedef uint32_t keycode;
+
         enum key {
             NONE = 0,
             ENTER = 10,
@@ -119,7 +121,7 @@ namespace tuim {
             /* To complete */
         };
 
-        key get_pressed(); /* Get pressed key */
+        keycode get_pressed(); /* Get pressed key */
         bool is_pressed(); /* Check if key has been pressed */
 
     }
@@ -213,7 +215,7 @@ namespace tuim {
 
         vec2 cursor;
 
-        keyboard::key pressed_key;
+        keyboard::keycode pressed_key;
 
         std::map<std::string, font::style> style_codes;
         std::map<font::mode, bool> style_modes;
@@ -286,7 +288,7 @@ namespace tuim {
     void add_item(item item); /* Push a new item */
     void remove_item(item_id id); /* Remove an item */
 
-    void update(tuim::keyboard::key key); /* Update the items */
+    void update(tuim::keyboard::keycode key); /* Update the items */
     void display(); /* Display pushed items */
 
     int calc_text_width(const std::string &str, int padding = 0); /* Compute a text width with padding*/
@@ -299,6 +301,8 @@ namespace tuim {
     void text(std::string id); /* Display text */
     bool button(std::string id, std::string text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
     template <typename T> bool slider(std::string id, T* value, T min, T max, T step); /* Display a number slider */
+    template <typename T> bool input_number(std::string id, std::string text, T* value, T min, T max, T step); /* Display a input for numbers */
+    bool input_string(std::string id, std::string text, std::string* value, std::string default_value); /* Display a input for string */
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
     container& get_container();
@@ -343,8 +347,8 @@ void tuim::create_context() {
 
 void tuim::delete_context() {
     delete tuim::ctx;
-    printf("\033[?1049l"); // disabled alternate buffer
     set_cursor_visible(true);
+    printf("\033[?1049l"); // disabled alternate buffer
 }
 
 void tuim::set_cursor_visible(bool cursor) {
@@ -503,7 +507,7 @@ void tuim::remove_item(item_id id) {
     }
 }
 
-void tuim::update(tuim::keyboard::key key) {
+void tuim::update(tuim::keyboard::keycode key) {
     tuim::context* ctx = tuim::get_context();
     ctx->pressed_key = key;
 
@@ -654,17 +658,17 @@ bool tuim::slider(std::string id, T* value, T min, T max, T step) {
         else if(tuim::is_pressed(keyboard::RIGHT)) {
             *value = std::min(max, *value + step);
         }
-        else if(tuim::is_pressed(keyboard::BACKSPACE)) tuim::set_active_id(0);
+        else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
     }
 
     if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::ENTER)) {
             tuim::set_active_id(item.id);
         }
-        if(tuim::is_item_active()) tuim::print("[*]\n");
-        else tuim::print("[x]\n");
+        if(tuim::is_item_active()) tuim::print("[*] ");
+        else tuim::print("[x] ");
     }
-    else tuim::print("[ ]\n");
+    else tuim::print("[ ] ");
 
     tuim::print("#555555"); // Push grey color
     for(T t = min+step; t <= max; t += step) {
@@ -672,6 +676,76 @@ bool tuim::slider(std::string id, T* value, T min, T max, T step) {
         tuim::print("█");
     }
     tuim::print("&r %s", std::to_string(*value).c_str());
+
+    return tuim::is_item_active();
+}
+
+template <typename T>
+bool tuim::input_number(std::string id, std::string text, T* value, T min, T max, T step) {
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
+    tuim::add_item(item);
+
+    if(tuim::is_item_active()) {
+        if(tuim::is_pressed(keyboard::LEFT)) {
+            *value = std::max(min, *value - step);
+        }
+        else if(tuim::is_pressed(keyboard::RIGHT)) {
+            *value = std::min(max, *value + step);
+        }
+        else if(tuim::is_pressed(keyboard::ENTER)) {
+            std::cin >> *value;
+        }
+        else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
+    }
+
+    if(tuim::is_item_hovered()) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
+            tuim::set_active_id(item.id);
+        }
+        if(tuim::is_item_active()) tuim::print("[*] ");
+        else tuim::print("[x] ");
+    }
+    else tuim::print("[ ] ");
+
+    tuim::print(text.c_str(), *value);
+
+    return tuim::is_item_active();
+}
+
+bool tuim::input_string(std::string id, std::string text, std::string* value, std::string default_value) {
+    context* ctx = get_context();
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
+    tuim::add_item(item);
+
+    if(tuim::is_item_active()) {
+        if(tuim::is_pressed(keyboard::BACKSPACE)) {
+            if(!value->empty())
+                value->pop_back();
+        }
+        else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
+        else {
+            char c = '\0';
+            if(ctx->pressed_key > 0xffff) c = (char)(ctx->pressed_key >> 16);
+            else if(ctx->pressed_key > 0xff) c = (char)(ctx->pressed_key >> 8);
+            else c = (char)(ctx->pressed_key);
+
+            if(std::isprint(c)) {
+                value->append({c});
+                tuim::print("%c\n", c);
+            }
+        }
+    }
+
+    if(tuim::is_item_hovered()) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
+            tuim::set_active_id(item.id);
+        }
+        if(tuim::is_item_active()) tuim::print("[*] ");
+        else tuim::print("[x] ");
+    }
+    else tuim::print("[ ] ");
+
+    tuim::print(text.c_str(), value->c_str());
 
     return tuim::is_item_active();
 }
@@ -698,7 +772,7 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
             *key = std::min(*key + 1, (int) columns.size()-1);
         }
 
-        if(tuim::is_pressed(keyboard::BACKSPACE)) tuim::set_active_id(0);
+        if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
     }
 
     if(tuim::is_item_hovered()) {
@@ -821,7 +895,7 @@ void tuim::impl::add_printing_info(const std::string &str) {
     ctx->printings_stack.push_back(tuim::printing_info{pos, width});
 }
 
-tuim::keyboard::key tuim::keyboard::get_pressed() {
+tuim::keyboard::keycode tuim::keyboard::get_pressed() {
     #ifdef __linux__
         int count = 0;
         int codes[3] = { 0, 0, 0 };
@@ -849,8 +923,8 @@ tuim::keyboard::key tuim::keyboard::get_pressed() {
         } while(tuim::keyboard::is_pressed());
 
         /* Get the final key code */
-        unsigned int code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + codes[2];
-        return (tuim::keyboard::key) code;
+        tuim::keyboard::keycode code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + codes[2];
+        return code;
 
     #elif _WIN32
 

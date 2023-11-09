@@ -11,7 +11,7 @@ int main(int argc, char* argv[])
     tuim::set_cursor_visible(false);
     tuim::font::register_style("a", tuim::font::make_style(tuim::color::from_hex(0x55FF55)));
 
-    tuim::keyboard::key key;
+    tuim::keyboard::keycode key;
     double width = 100;
     int cursor = 0;
 

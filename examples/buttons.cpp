@@ -10,7 +10,7 @@ int main(int argc, char* argv[])
 
     tuim::set_cursor_visible(false);
 
-    tuim::keyboard::key key;
+    tuim::keyboard::keycode key;
     int a = 0;
     bool t = false;
 
