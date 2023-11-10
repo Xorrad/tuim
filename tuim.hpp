@@ -302,6 +302,7 @@ namespace tuim {
     bool button(std::string id, std::string text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
     template <typename T> bool slider(std::string id, T* value, T min, T max, T step); /* Display a number slider */
     template <typename T> bool input_number(std::string id, std::string text, T* value, T min, T max, T step); /* Display a input for numbers */
+    template <typename U> bool input_enum(std::string id, std::string text, U* value, U max, const std::map<U, std::string>& labels); /* Display a input for enums */
     bool input_string(std::string id, std::string text, std::string* value, std::string default_value); /* Display a input for string */
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
@@ -709,6 +710,35 @@ bool tuim::input_number(std::string id, std::string text, T* value, T min, T max
     else tuim::print("[ ] ");
 
     tuim::print(text.c_str(), *value);
+
+    return tuim::is_item_active();
+}
+
+template <typename U>
+bool tuim::input_enum(std::string id, std::string text, U* value, U max, const std::map<U, std::string>& labels) {
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
+    tuim::add_item(item);
+
+    if(tuim::is_item_active()) {
+        if(tuim::is_pressed(keyboard::LEFT)) {
+            *value = static_cast<U>((*value == 0) ? max - 1 : *value - 1);
+        }
+        else if(tuim::is_pressed(keyboard::RIGHT)) {
+            *value = static_cast<U>((*value + 1) % max);
+        }
+        else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
+    }
+
+    if(tuim::is_item_hovered()) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
+            tuim::set_active_id(item.id);
+        }
+        if(tuim::is_item_active()) tuim::print("[*] ");
+        else tuim::print("[x] ");
+    }
+    else tuim::print("[ ] ");
+
+    tuim::print(text.c_str(), labels.at(*value).c_str());
 
     return tuim::is_item_active();
 }
