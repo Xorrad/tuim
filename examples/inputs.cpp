@@ -1,8 +1,5 @@
 #include "../tuim.hpp"
 
-#include <math.h>
-#include <time.h>
-
 enum weapon {
     NONE,
     SWORD,

@@ -1,5 +1,5 @@
 # tuim
-A immediate mode text-based user interface for terminals.
+An immediate mode text-based user interface for terminals.
 
 ## Containers
 
