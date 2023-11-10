@@ -214,6 +214,7 @@ namespace tuim {
         item_id hovered_id;
 
         vec2 cursor;
+        bool cursor_visible;
 
         keyboard::keycode pressed_key;
 
@@ -229,6 +230,9 @@ namespace tuim {
             active_id = 0;
             last_active_id = 0;
             hovered_id = 0;
+
+            cursor = {0, 0};
+            cursor_visible = true;
 
             pressed_key = tuim::keyboard::NONE;
 
@@ -260,6 +264,7 @@ namespace tuim {
     void delete_context(); /* Delete the global gui context */
 
     void set_cursor_visible(bool cursor); /* Set the terminal cursor visible */
+    bool is_cursor_visible(); /* Get the cursor visibility */
     void set_title(std::string title); /* Set terminal title */
     void set_cursor(vec2 pos); /* Change terminal cursor position */
     vec2 get_cursor(); /* Get terminal cursor position */
@@ -353,7 +358,14 @@ void tuim::delete_context() {
 }
 
 void tuim::set_cursor_visible(bool cursor) {
+    context* ctx = get_context();
+    ctx->cursor_visible = cursor;
     printf("\033[?25l");
+}
+
+bool tuim::is_cursor_visible() {
+    context* ctx = get_context();
+    return ctx->cursor_visible;
 }
 
 void tuim::set_title(std::string title) {
