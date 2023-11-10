@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
 
         tuim::slider<int>("#s1", &value1, 0, 100, 1);
         tuim::print("\n");
-        tuim::slider<float>("#s2", &value2, 0.f, 1.f, 0.01f);
+        tuim::slider<float>("#s2", &value2, 0.f, 0.5f, 0.01f);
         tuim::print("\n");
         tuim::input_number<int>("#i1", "< %d >", &value1, 0, 100, 1);
         tuim::print("\n");

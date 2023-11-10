@@ -671,8 +671,9 @@ bool tuim::slider(std::string id, T* value, T min, T max, T step) {
     else tuim::print("[ ] ");
 
     tuim::print("#555555"); // Push grey color
-    for(T t = min+step; t <= max; t += step) {
-        if(*value < t) tuim::print("&r");
+    float prct = ((float) (*value - min) / (float) (max-min))*100.f;
+    for(int t = 0; t < 100; t++) {
+        if(t >= prct) tuim::print("&r");
         tuim::print("█");
     }
     tuim::print("&r %s", std::to_string(*value).c_str());
