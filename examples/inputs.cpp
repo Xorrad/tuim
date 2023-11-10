@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
         tuim::print("\n");
         tuim::input_number<int>("#i1", "< %d >", &value1, 0, 100, 1);
         tuim::print("\n");
-        tuim::input_string("#i2", "#_555555%s&r", &value3, "");
+        tuim::input_string("#i2", &value3, "");
         tuim::print("\n");
         tuim::input_enum<weapon>("#i3", "< %s >", &value4, NUM_WEAPONS, weapon_labels);
 

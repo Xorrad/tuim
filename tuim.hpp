@@ -308,7 +308,7 @@ namespace tuim {
     template <typename T> bool slider(std::string id, T* value, T min, T max, T step); /* Display a number slider */
     template <typename T> bool input_number(std::string id, std::string text, T* value, T min, T max, T step); /* Display a input for numbers */
     template <typename U> bool input_enum(std::string id, std::string text, U* value, U max, const std::map<U, std::string>& labels); /* Display a input for enums */
-    bool input_string(std::string id, std::string text, std::string* value, std::string default_value); /* Display a input for string */
+    bool input_string(std::string id, std::string* value, std::string default_value); /* Display a input for string */
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
     container& get_container();
@@ -755,7 +755,7 @@ bool tuim::input_enum(std::string id, std::string text, U* value, U max, const s
     return tuim::is_item_active();
 }
 
-bool tuim::input_string(std::string id, std::string text, std::string* value, std::string default_value) {
+bool tuim::input_string(std::string id, std::string* value, std::string default_value) {
     context* ctx = get_context();
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
@@ -788,7 +788,9 @@ bool tuim::input_string(std::string id, std::string text, std::string* value, st
     }
     else tuim::print("[ ] ");
 
-    tuim::print(text.c_str(), value->c_str());
+    tuim::print("#_555555%s", value->c_str());
+    if(tuim::is_item_active() && !tuim::keyboard::is_pressed()) tuim::print("&g█");
+    tuim::print("&r");
 
     return tuim::is_item_active();
 }
