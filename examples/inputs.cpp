@@ -22,13 +22,14 @@ int main(int argc, char* argv[])
     tuim::set_cursor_visible(false);
 
     tuim::keyboard::keycode key;
+    tuim::keyboard::keycode lkey;
     int a = 0;
 
     int value1 = 50;
     float value2 = 0.5f;
     std::string value3 = "tuim";
     weapon value4 = NONE;
-    tuim::keyboard::keycode lkey;
+    bool value5 = false;
 
     do {
         key = tuim::keyboard::NONE;
@@ -45,20 +46,25 @@ int main(int argc, char* argv[])
 
         tuim::print("value1: %d\n", value1);
         tuim::print("value2: %f\n", value2);
-        tuim::print("value3: %s\n\n", value3.c_str());
-        tuim::print("value3: %d %s\n\n", value4, weapon_labels.at(value4).c_str());
+        tuim::print("value3: %s\n", value3.c_str());
+        tuim::print("value3: %d %s\n", value4, weapon_labels.at(value4).c_str());
+        tuim::print("value3: %d\n\n", value5);
         if(key != 0) lkey = key;
         tuim::print("key: %lu %lu %lu\n\n", (lkey >> 16), (lkey >> 8) & 0xFF, (lkey & 0xFF));
 
         tuim::slider<int>("#s1", &value1, 0, 100, 1);
-        tuim::print("\n");
+        tuim::new_line();
         tuim::slider<float>("#s2", &value2, 0.f, 0.5f, 0.01f);
-        tuim::print("\n");
+        tuim::new_line();
         tuim::input_number<int>("#i1", "< %d >", &value1, 0, 100, 1);
-        tuim::print("\n");
+        tuim::new_line();
         tuim::input_string("#i2", &value3, "");
-        tuim::print("\n");
+        tuim::new_line();
         tuim::input_enum<weapon>("#i3", "< %s >", &value4, NUM_WEAPONS, weapon_labels);
+        tuim::new_line();
+        tuim::input_bool("#i4", "< %s >", &value5);
+
+        tuim::print("\n\nPress F1 to exit.");
 
     } while(key != tuim::keyboard::F1);
 

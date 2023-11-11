@@ -268,7 +268,7 @@ namespace tuim {
     void set_title(std::string title); /* Set terminal title */
     void set_cursor(vec2 pos); /* Change terminal cursor position */
     vec2 get_cursor(); /* Get terminal cursor position */
-    void newline(); /* Break to a new line */
+    void new_line(); /* Break to a new line */
     void clear(); /* Clear terminal output */
     void clear_line(); /* Clear terminal output */
     template<typename ... Args> void print(const char* fmt, Args ... args); /* Format text for printing to screen */
@@ -307,7 +307,8 @@ namespace tuim {
     bool button(std::string id, std::string text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
     template <typename T> bool slider(std::string id, T* value, T min, T max, T step); /* Display a number slider */
     template <typename T> bool input_number(std::string id, std::string text, T* value, T min, T max, T step); /* Display a input for numbers */
-    template <typename U> bool input_enum(std::string id, std::string text, U* value, U max, const std::map<U, std::string>& labels); /* Display a input for enums */
+    template <typename U> bool input_enum(std::string id, std::string text, U* value, int max, const std::map<U, std::string>& labels); /* Display a input for enums */
+    bool input_bool(std::string id, std::string text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); /* Display a input for booleans */
     bool input_string(std::string id, std::string* value, std::string default_value); /* Display a input for string */
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
@@ -382,7 +383,7 @@ tuim::vec2 tuim::get_cursor() {
     return ctx->cursor;
 }
 
-void tuim::newline() {
+void tuim::new_line() {
     printf("\n");
 }
 
@@ -727,7 +728,7 @@ bool tuim::input_number(std::string id, std::string text, T* value, T min, T max
 }
 
 template <typename U>
-bool tuim::input_enum(std::string id, std::string text, U* value, U max, const std::map<U, std::string>& labels) {
+bool tuim::input_enum(std::string id, std::string text, U* value, int max, const std::map<U, std::string>& labels) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
 
@@ -753,6 +754,10 @@ bool tuim::input_enum(std::string id, std::string text, U* value, U max, const s
     tuim::print(text.c_str(), labels.at(*value).c_str());
 
     return tuim::is_item_active();
+}
+
+bool tuim::input_bool(std::string id, std::string text, bool* value, const std::map<bool, std::string>& labels) {
+    return input_enum<bool>(id, text, value, 2, labels);
 }
 
 bool tuim::input_string(std::string id, std::string* value, std::string default_value) {
