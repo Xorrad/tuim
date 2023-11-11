@@ -665,21 +665,16 @@ bool tuim::slider(std::string id, T* value, T min, T max, T step) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
 
-    if(tuim::is_item_active()) {
-        if(tuim::is_pressed(keyboard::LEFT)) {
+    if(tuim::is_item_hovered()) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
+            tuim::print("[*] ");
+        }
+        else if(tuim::is_pressed(keyboard::LEFT)) {
             *value = std::max(min, *value - step);
         }
         else if(tuim::is_pressed(keyboard::RIGHT)) {
             *value = std::min(max, *value + step);
         }
-        else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
-    }
-
-    if(tuim::is_item_hovered()) {
-        if(tuim::is_pressed(keyboard::ENTER)) {
-            tuim::set_active_id(item.id);
-        }
-        if(tuim::is_item_active()) tuim::print("[*] ");
         else tuim::print("[x] ");
     }
     else tuim::print("[ ] ");
@@ -689,6 +684,10 @@ bool tuim::slider(std::string id, T* value, T min, T max, T step) {
     for(int t = 0; t < 100; t++) {
         if(t >= prct) tuim::print("&r");
         tuim::print("█");
+    }
+    if(tuim::is_item_hovered() && tuim::is_pressed(keyboard::ENTER)) {
+        tuim::print("&r ");
+        std::cin >> *value;
     }
     tuim::print("&r %s", std::to_string(*value).c_str());
 
@@ -700,24 +699,17 @@ bool tuim::input_number(std::string id, std::string text, T* value, T min, T max
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
 
-    if(tuim::is_item_active()) {
-        if(tuim::is_pressed(keyboard::LEFT)) {
+    if(tuim::is_item_hovered()) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
+            tuim::print("[*] ");
+            std::cin >> *value;
+        }
+        else if(tuim::is_pressed(keyboard::LEFT)) {
             *value = std::max(min, *value - step);
         }
         else if(tuim::is_pressed(keyboard::RIGHT)) {
             *value = std::min(max, *value + step);
         }
-        else if(tuim::is_pressed(keyboard::ENTER)) {
-            std::cin >> *value;
-        }
-        else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
-    }
-
-    if(tuim::is_item_hovered()) {
-        if(tuim::is_pressed(keyboard::ENTER)) {
-            tuim::set_active_id(item.id);
-        }
-        if(tuim::is_item_active()) tuim::print("[*] ");
         else tuim::print("[x] ");
     }
     else tuim::print("[ ] ");
@@ -732,22 +724,15 @@ bool tuim::input_enum(std::string id, std::string text, U* value, int max, const
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
 
-    if(tuim::is_item_active()) {
+    if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::LEFT)) {
             *value = static_cast<U>((*value == 0) ? max - 1 : *value - 1);
         }
         else if(tuim::is_pressed(keyboard::RIGHT)) {
             *value = static_cast<U>((*value + 1) % max);
         }
-        else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
-    }
-
-    if(tuim::is_item_hovered()) {
-        if(tuim::is_pressed(keyboard::ENTER)) {
-            tuim::set_active_id(item.id);
-        }
-        if(tuim::is_item_active()) tuim::print("[*] ");
-        else tuim::print("[x] ");
+        
+        tuim::print("[x] ");
     }
     else tuim::print("[ ] ");
 
