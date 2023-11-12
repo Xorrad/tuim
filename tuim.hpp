@@ -663,12 +663,13 @@ bool tuim::button(std::string id, std::string text, button_flags flags) {
 
 template <typename T>
 bool tuim::slider(std::string id, T* value, T min, T max, T step) {
-    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
     if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::ENTER)) {
             tuim::print("[*] ");
+            tuim::set_active_id(item.id);
         }
         else if(tuim::is_pressed(keyboard::LEFT)) {
             *value = std::max(min, *value - step);
@@ -697,19 +698,22 @@ bool tuim::slider(std::string id, T* value, T min, T max, T step) {
 
 template <typename T>
 bool tuim::input_number(std::string id, std::string text, T* value, T min, T max, T step) {
-    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
     if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::ENTER)) {
             tuim::print("[*] ");
             std::cin >> *value;
+            tuim::set_active_id(item.id);
         }
         else if(tuim::is_pressed(keyboard::LEFT)) {
             *value = std::max(min, *value - step);
+            tuim::set_active_id(item.id);
         }
         else if(tuim::is_pressed(keyboard::RIGHT)) {
             *value = std::min(max, *value + step);
+            tuim::set_active_id(item.id);
         }
         else tuim::print("[x] ");
     }
@@ -722,15 +726,17 @@ bool tuim::input_number(std::string id, std::string text, T* value, T min, T max
 
 template <typename U>
 bool tuim::input_enum(std::string id, std::string text, U* value, int max, const std::map<U, std::string>& labels) {
-    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
     if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::LEFT)) {
             *value = static_cast<U>((*value == 0) ? max - 1 : *value - 1);
+            tuim::set_active_id(item.id);
         }
         else if(tuim::is_pressed(keyboard::RIGHT)) {
             *value = static_cast<U>((*value + 1) % max);
+            tuim::set_active_id(item.id);
         }
         
         tuim::print("[x] ");
