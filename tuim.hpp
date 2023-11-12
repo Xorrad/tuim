@@ -310,6 +310,7 @@ namespace tuim {
     template <typename U> bool input_enum(std::string id, std::string text, U* value, int max, const std::map<U, std::string>& labels); /* Display a input for enums */
     bool input_bool(std::string id, std::string text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); /* Display a input for booleans */
     bool input_string(std::string id, std::string* value, std::string default_value); /* Display a input for string */
+    bool checkbox(std::string id, std::string text, bool* value);
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
     container& get_container();
@@ -781,6 +782,24 @@ bool tuim::input_string(std::string id, std::string* value, std::string default_
     tuim::print("#_555555%s", value->c_str());
     if(tuim::is_item_active() && !tuim::keyboard::is_pressed()) tuim::print("&g█");
     tuim::print("&r");
+
+    return tuim::is_item_active();
+}
+
+bool tuim::checkbox(std::string id, std::string text, bool* value) {
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
+    tuim::add_item(item);
+
+    if(tuim::is_item_hovered()) {
+        if(tuim::is_pressed(keyboard::ENTER)) {
+            tuim::set_active_id(item.id);
+            *value = !*value;
+        }
+        tuim::print("[x] ");
+    }
+    else tuim::print("[ ] ");
+
+    tuim::print(text.c_str(), (*value ? "✔" : "✗"));
 
     return tuim::is_item_active();
 }

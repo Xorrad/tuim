@@ -63,6 +63,8 @@ int main(int argc, char* argv[])
         tuim::input_enum<weapon>("#i3", "< %s >", &value4, NUM_WEAPONS, weapon_labels);
         tuim::new_line();
         tuim::input_bool("#i4", "< %s >", &value5);
+        tuim::new_line();
+        tuim::checkbox("#c1", "value5: < %s >", &value5);
 
         tuim::print("\n\nPress F1 to exit.");
 
