@@ -123,7 +123,6 @@ namespace tuim {
 
         keycode get_pressed(); /* Get pressed key */
         bool is_pressed(); /* Check if key has been pressed */
-
     }
 
     namespace color {
@@ -285,6 +284,8 @@ namespace tuim {
     bool is_item_active(); /* Determine if last pushed item is active */
     bool is_item_hovered(); /* Determine if last pushed item is hovered */
     bool is_pressed(tuim::keyboard::key key); /* Determine if a specified key has been pressed */
+    bool is_pressed(tuim::keyboard::keycode code); /* Determine if a specified keycode has been pressed */
+    bool is_pressed(const char* c); /* Determine if a specified character has been pressed */
     bool has_hoverable(); /* Determine if an hoverable item has been pushed */
 
     void set_active_id(item_id id); /* Set an item as active */
@@ -333,6 +334,10 @@ namespace tuim {
         size_t length(const std::string &str);
         std::string fill(const std::string &str, size_t length);
         std::string parse_styles(const std::string &str); /* Replace style codes with ansi escape sequences */
+        uint32_t utf8_to_int(const std::string& c);
+        std::string int_to_utf8(uint32_t code);
+        bool is_printable(uint32_t code);
+        void pop_back_utf8(std::string& str);
     }
 
 }
@@ -485,8 +490,17 @@ bool tuim::is_item_hovered() {
 }
 
 bool tuim::is_pressed(tuim::keyboard::key key) {
+    return tuim::is_pressed((tuim::keyboard::keycode) key);
+}
+
+bool tuim::is_pressed(tuim::keyboard::keycode code) {
     tuim::context* ctx = tuim::get_context();
-    return ctx->pressed_key == key;
+    return ctx->pressed_key == code;
+}
+
+bool tuim::is_pressed(const char* c) {
+    tuim::context* ctx = tuim::get_context();
+    return ctx->pressed_key == tuim::string::utf8_to_int(c);
 }
 
 bool tuim::has_hoverable() {
@@ -759,19 +773,13 @@ bool tuim::input_string(std::string id, std::string* value, std::string default_
 
     if(tuim::is_item_active()) {
         if(tuim::is_pressed(keyboard::BACKSPACE)) {
-            if(!value->empty())
-                value->pop_back();
+            tuim::string::pop_back_utf8(*value);
         }
         else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
         else {
-            char c = '\0';
-            if(ctx->pressed_key > 0xffff) c = (char)(ctx->pressed_key >> 16);
-            else if(ctx->pressed_key > 0xff) c = (char)(ctx->pressed_key >> 8);
-            else c = (char)(ctx->pressed_key);
-
-            if(std::isprint(c)) {
-                value->append({c});
-                tuim::print("%c\n", c);
+            uint32_t code = ctx->pressed_key;
+            if(tuim::string::is_printable(code)) {
+                (*value) += tuim::string::int_to_utf8(code);
             }
         }
     }
@@ -958,32 +966,31 @@ void tuim::impl::add_printing_info(const std::string &str) {
 tuim::keyboard::keycode tuim::keyboard::get_pressed() {
     #ifdef __linux__
         int count = 0;
-        int codes[3] = { 0, 0, 0 };
+        unsigned char codes[4] = { 0, 0, 0, 0 };
 
         /* Loop for escaped characters */
         do {
             char buf;
-            struct termios term;
+            termios term;
             fflush(stdout);
-            if(tcgetattr(0, &term) < 0)
-                perror("tcsetattr()");
+            tcgetattr(0, &term);
             term.c_lflag &= ~(ICANON | ECHO);
             term.c_cc[VMIN] = 1;
             term.c_cc[VTIME] = 0;
-            if(tcsetattr(0, TCSANOW, &term) < 0)
-                perror("tcsetattr ICANON");
-            if(read(0, &buf, 1) < 0)
-                perror("read()");
+            tcsetattr(0, TCSANOW, &term);
+
+            read(0, &buf, 1);
+
             term.c_lflag |= ICANON | ECHO;
-            if(tcsetattr(0, TCSADRAIN, &term) < 0)
-                perror("tcsetattr ~ICANON");
-            codes[count] = (int) buf;
+            tcsetattr(0, TCSADRAIN, &term);
+
+            codes[count] = (unsigned char) buf;
             // printf("[%d] %d\n", count, codes[count]);
             count++;
         } while(tuim::keyboard::is_pressed());
 
         /* Get the final key code */
-        tuim::keyboard::keycode code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + codes[2];
+        tuim::keyboard::keycode code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + (codes[2] << (8*(count-3))) + codes[3];
         return code;
 
     #elif _WIN32
@@ -1122,6 +1129,48 @@ std::string tuim::string::parse_styles(const std::string &str) {
     }
 
     return parsed;
+}
+
+uint32_t tuim::string::utf8_to_int(const std::string& c) {
+    uint32_t code = 0;
+    for(size_t i = 0; i < c.length(); i++)
+        code += ((unsigned char) c[i] << (8 * (c.length()-i-1)));
+    return code;
+}
+
+std::string tuim::string::int_to_utf8(uint32_t code) {
+    int length = 0;
+    uint32_t code2 = code;
+    while(code2 != 0) {
+        code2 >>= 8;
+        length++;
+    }
+    std::string c = std::string("", length);
+    for(int i = 0; i < length; i++) {
+        c[length - i - 1] = static_cast<char>(code & 0xFF);
+        code >>= 8;
+    }
+    return c;
+}
+
+bool tuim::string::is_printable(uint32_t code) {
+    if((code & 0x1B5B00) == 0x1B5B00)
+        return false;
+    if(tuim::string::int_to_utf8(code)[0] == 0x1B)
+        return false;
+    if(code < 127)
+        return std::isprint(code & 0xFF);
+    return true;
+}
+
+void tuim::string::pop_back_utf8(std::string& utf8) {
+    /* https://stackoverflow.com/a/37623867 */
+    if(utf8.empty())
+        return;
+    char* cp = utf8.data() + utf8.size();
+    while(--cp >= utf8.data() && ((*cp & 0b10000000) && !(*cp & 0b01000000))) {}
+    if(cp >= utf8.data())
+        utf8.resize(cp - utf8.data());
 }
 
 void tuim::font::register_style(const std::string &code, const style &style) {

@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
     tuim::set_cursor_visible(false);
 
     tuim::keyboard::keycode key;
-    tuim::keyboard::keycode lkey;
+    tuim::keyboard::keycode last_key;
     int a = 0;
 
     int value1 = 50;
@@ -47,10 +47,11 @@ int main(int argc, char* argv[])
         tuim::print("value1: %d\n", value1);
         tuim::print("value2: %f\n", value2);
         tuim::print("value3: %s\n", value3.c_str());
-        tuim::print("value3: %d %s\n", value4, weapon_labels.at(value4).c_str());
-        tuim::print("value3: %d\n\n", value5);
-        if(key != 0) lkey = key;
-        tuim::print("key: %lu %lu %lu\n\n", (lkey >> 16), (lkey >> 8) & 0xFF, (lkey & 0xFF));
+        tuim::print("value4: %d %s\n", value4, weapon_labels.at(value4).c_str());
+        tuim::print("value5: %d\n\n", value5);
+        if(key != 0) last_key = key;
+        tuim::print("key: %lu %lu %lu %lu\n\n", (last_key >> 24), (last_key >> 16) & 0xFF, (last_key >> 8) & 0xFF, (last_key & 0xFF));
+        tuim::print("utf-8 'ë' [0xC3AB]: %s\n", tuim::string::int_to_utf8(0xC3AB).c_str());
 
         tuim::slider<int>("#s1", &value1, 0, 100, 1);
         tuim::new_line();
@@ -67,7 +68,7 @@ int main(int argc, char* argv[])
         tuim::checkbox("#c1", "value5: %s", &value5);
 
         tuim::print("\n\nPress F1 to exit.");
-
+        
     } while(key != tuim::keyboard::F1);
 
     tuim::delete_context();
