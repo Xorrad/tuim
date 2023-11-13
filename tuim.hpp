@@ -987,7 +987,7 @@ tuim::keyboard::keycode tuim::keyboard::get_pressed() {
             codes[count] = (unsigned char) buf;
             // printf("[%d] %d\n", count, codes[count]);
             count++;
-        } while(tuim::keyboard::is_pressed());
+        } while(tuim::keyboard::is_pressed() && count < 4);
 
         /* Get the final key code */
         tuim::keyboard::keycode code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + (codes[2] << (8*(count-3))) + codes[3];
