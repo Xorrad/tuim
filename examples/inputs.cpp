@@ -51,7 +51,7 @@ int main(int argc, char* argv[])
         tuim::print("value5: %d\n\n", value5);
         if(key != 0) last_key = key;
         tuim::print("key: %lu %lu %lu %lu\n\n", (last_key >> 24), (last_key >> 16) & 0xFF, (last_key >> 8) & 0xFF, (last_key & 0xFF));
-        tuim::print("utf-8 'ë' [0xC3AB]: %s\n", tuim::string::int_to_utf8(0xC3AB).c_str());
+        tuim::print("utf-8 'ë' [0xC3AB]: %s %d\n", tuim::string::int_to_utf8(0xC3AB).c_str());
 
         tuim::slider<int>("#s1", &value1, 0, 100, 1);
         tuim::new_line();

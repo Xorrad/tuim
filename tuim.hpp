@@ -36,7 +36,9 @@
 #define TUIM_COLOR_BACKGROUND '_'
 #define TUIM_COLOR_CUSTOM '#'
 
-#define TUIM_MAKE_KEY(a, b, c) (a<<16) + (b<<8) + c
+#define TUIM_MAKE_KEY2(a, b) (b<<8) + c
+#define TUIM_MAKE_KEY3(a, b, c) (a<<16) + (b<<8) + c
+#define TUIM_MAKE_KEY4(a, b, c, d) (a<<24) + (b<<16) + (c<<8) + d
 
 namespace tuim {
 
@@ -73,24 +75,25 @@ namespace tuim {
             NONE = 0,
             ENTER = 10,
             ESCAPE = 27,
-            UP = TUIM_MAKE_KEY(27, 91, 'A'),
-            DOWN = TUIM_MAKE_KEY(27, 91, 'B'),
-            RIGHT = TUIM_MAKE_KEY(27, 91, 'C'),
-            LEFT = TUIM_MAKE_KEY(27, 91, 'D'),
-            END = TUIM_MAKE_KEY(27, 79, 'F'),
-            HOME = TUIM_MAKE_KEY(27, 79, 'H'),
-            F1 = TUIM_MAKE_KEY(27, 79, 80),
-            F2 = TUIM_MAKE_KEY(27, 79, 81),
-            F3 = TUIM_MAKE_KEY(27, 79, 82),
-            F4 = TUIM_MAKE_KEY(27, 79, 83),
-            F5 = TUIM_MAKE_KEY(27, 79, 84),
-            F6 = TUIM_MAKE_KEY(27, 79, 85),
-            F7 = TUIM_MAKE_KEY(27, 79, 86),
-            F8 = TUIM_MAKE_KEY(27, 79, 87),
-            F9 = TUIM_MAKE_KEY(27, 79, 89),
-            F10 = TUIM_MAKE_KEY(27, 79, 90),
-            F11 = TUIM_MAKE_KEY(27, 79, 91),
-            F12 = TUIM_MAKE_KEY(27, 79, 92),
+            UP = TUIM_MAKE_KEY3(27, 91, 'A'),
+            DOWN = TUIM_MAKE_KEY3(27, 91, 'B'),
+            RIGHT = TUIM_MAKE_KEY3(27, 91, 'C'),
+            LEFT = TUIM_MAKE_KEY3(27, 91, 'D'),
+            END = TUIM_MAKE_KEY3(27, 79, 'F'),
+            HOME = TUIM_MAKE_KEY3(27, 79, 'H'),
+            F1 = TUIM_MAKE_KEY3(27, 79, 80),
+            F2 = TUIM_MAKE_KEY3(27, 79, 81),
+            F3 = TUIM_MAKE_KEY3(27, 79, 82),
+            F4 = TUIM_MAKE_KEY3(27, 79, 83),
+            F5 = TUIM_MAKE_KEY3(27, 79, 84),
+            F6 = TUIM_MAKE_KEY3(27, 79, 85),
+            F7 = TUIM_MAKE_KEY3(27, 79, 86),
+            F8 = TUIM_MAKE_KEY3(27, 79, 87),
+            F9 = TUIM_MAKE_KEY3(27, 79, 89),
+            F10 = TUIM_MAKE_KEY3(27, 79, 90),
+            F11 = TUIM_MAKE_KEY3(27, 79, 91),
+            F12 = TUIM_MAKE_KEY3(27, 79, 92),
+            DELETE = TUIM_MAKE_KEY4(27, 91, 51, 126),
             A = 97,
             B = 98,
             C = 99,
@@ -337,7 +340,7 @@ namespace tuim {
         uint32_t utf8_to_int(const std::string& c);
         std::string int_to_utf8(uint32_t code);
         bool is_printable(uint32_t code);
-        void pop_back_utf8(std::string& str);
+        size_t char_length(char c);
     }
 
 }
@@ -771,30 +774,72 @@ bool tuim::input_string(std::string id, std::string* value, std::string default_
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
 
+    static size_t cursor = value->length();
+
     if(tuim::is_item_active()) {
-        if(tuim::is_pressed(keyboard::BACKSPACE)) {
-            tuim::string::pop_back_utf8(*value);
+        if(tuim::is_pressed(keyboard::LEFT)) {
+            if(cursor > 0) {
+                do {
+                    cursor--;
+                } while(cursor > 0 && (0b00000011 & (value->at(cursor) >> 6)) == 0b10);
+            }
+        }
+        else if(tuim::is_pressed(keyboard::RIGHT)) {
+            if(cursor < value->length())
+                cursor += tuim::string::char_length(value->at(cursor));
+        }
+        else if(tuim::is_pressed(keyboard::DELETE)) {
+            if(cursor < value->length()) {
+                *value = value->erase(cursor, tuim::string::char_length(value->at(cursor)));
+            }
+        }
+        else if(tuim::is_pressed(keyboard::BACKSPACE)) {
+            if(cursor > 0) {
+                size_t l = 0;
+                do {
+                    l++;
+                    cursor--;
+                } while(cursor > 0 && (0b00000011 & (value->at(cursor) >> 6)) == 0b10);
+                *value = value->erase(cursor, l);
+            }
         }
         else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
         else {
             uint32_t code = ctx->pressed_key;
             if(tuim::string::is_printable(code)) {
-                (*value) += tuim::string::int_to_utf8(code);
+                std::string str = tuim::string::int_to_utf8(code);
+                for(size_t i = 0; i < str.length(); i++)
+                    (*value).insert(value->begin() + cursor + i, str[i]);
+                cursor += str.length();
             }
         }
     }
 
     if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::ENTER)) {
-            tuim::set_active_id(item.id);
+            if(tuim::is_item_active()) tuim::set_active_id(0);
+            else {
+                tuim::set_active_id(item.id);
+                cursor = tuim::calc_text_width(*value);
+            }
         }
         if(tuim::is_item_active()) tuim::print("[*] ");
         else tuim::print("[x] ");
     }
     else tuim::print("[ ] ");
 
-    tuim::print("#_555555%s", value->c_str());
-    if(tuim::is_item_active() && !tuim::keyboard::is_pressed()) tuim::print("&g█");
+    tuim::print("#_555555");
+    size_t i = 0;
+    while(i < value->length()) {
+        size_t l = tuim::string::char_length(value->at(i));
+        std::string str = value->substr(i, l);
+
+        if(tuim::is_item_active() && !tuim::keyboard::is_pressed() && cursor == i) tuim::print("#_ffffff#555555%s&r#_555555", str.c_str()); //█
+        else tuim::print("%s", str.c_str());
+        
+        i += l;
+    }
+    if(tuim::is_item_active() && !tuim::keyboard::is_pressed() && cursor == i) tuim::print("#_ffffff "); //█
     tuim::print("&r");
 
     return tuim::is_item_active();
@@ -1163,14 +1208,16 @@ bool tuim::string::is_printable(uint32_t code) {
     return true;
 }
 
-void tuim::string::pop_back_utf8(std::string& utf8) {
-    /* https://stackoverflow.com/a/37623867 */
-    if(utf8.empty())
-        return;
-    char* cp = utf8.data() + utf8.size();
-    while(--cp >= utf8.data() && ((*cp & 0b10000000) && !(*cp & 0b01000000))) {}
-    if(cp >= utf8.data())
-        utf8.resize(cp - utf8.data());
+size_t tuim::string::char_length(char c) {
+    if((0b00000001 & (c >> 7)) == 0b0)
+        return 1;
+    if((0b00000111 & (c >> 5)) == 0b110)
+        return 2;
+    if((0b00001111 & (c >> 4)) == 0b1110)
+        return 3;
+    if((0b00011111 & (c >> 3)) == 0b11110)
+        return 4;
+    return 1;
 }
 
 void tuim::font::register_style(const std::string &code, const style &style) {
