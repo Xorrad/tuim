@@ -48,6 +48,7 @@ namespace tuim {
     typedef uint32_t item_flags;
     typedef uint32_t text_flags;
     typedef uint32_t button_flags;
+    typedef uint32_t input_text_flags;
 
     /* User Interface related structures */
     struct context;
@@ -191,6 +192,12 @@ namespace tuim {
         BUTTON_FLAGS_NONE = 0,
     };
 
+    enum input_text_flags_ {
+        INPUT_TEXT_FLAGS_NONE = 0,
+        INPUT_TEXT_FLAGS_NUMERIC_ONLY = 1 << 0,
+        INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY = 1 << 1,
+    };
+
     struct printing_info {
         vec2 pos;
         uint32_t size;
@@ -314,7 +321,7 @@ namespace tuim {
     template <typename T> bool input_number(std::string id, std::string text, T* value, T min, T max, T step); /* Display a input for numbers */
     template <typename U> bool input_enum(std::string id, std::string text, U* value, int max, const std::map<U, std::string>& labels); /* Display a input for enums */
     bool input_bool(std::string id, std::string text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); /* Display a input for booleans */
-    bool input_string(std::string id, std::string* value, std::string default_value); /* Display a input for string */
+    bool input_text(std::string id, std::string* value, std::string default_value, input_text_flags flags = INPUT_TEXT_FLAGS_NONE); /* Display a input for string */
     bool checkbox(std::string id, std::string text, bool* value);
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
@@ -342,6 +349,7 @@ namespace tuim {
         std::string int_to_utf8(uint32_t code);
         bool is_printable(uint32_t code);
         size_t char_length(char c);
+        bool is_alphanumeric(uint32_t code);
     }
 
 }
@@ -418,8 +426,8 @@ void tuim::clear_line() {
 
 void tuim::print_to_screen(const std::string& str) {
     context* ctx = get_context();
-    for(int i = 0; i < str.length();) {
-        int l = tuim::string::char_length(str.at(i));
+    for(size_t i = 0; i < str.length();) {
+        size_t l = tuim::string::char_length(str.at(i));
         if(l == 1 && str.at(i) == '\n') {
             set_cursor({0, ctx->cursor.y+1});
         }
@@ -778,7 +786,7 @@ bool tuim::input_bool(std::string id, std::string text, bool* value, const std::
     return input_enum<bool>(id, text, value, 2, labels);
 }
 
-bool tuim::input_string(std::string id, std::string* value, std::string default_value) {
+bool tuim::input_text(std::string id, std::string* value, std::string default_value, input_text_flags flags) {
     context* ctx = get_context();
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
@@ -816,10 +824,14 @@ bool tuim::input_string(std::string id, std::string* value, std::string default_
         else {
             uint32_t code = ctx->pressed_key;
             if(tuim::string::is_printable(code)) {
-                std::string str = tuim::string::int_to_utf8(code);
-                for(size_t i = 0; i < str.length(); i++)
-                    (*value).insert(value->begin() + cursor + i, str[i]);
-                cursor += str.length();
+                if((flags & INPUT_TEXT_FLAGS_NUMERIC_ONLY && isdigit(code))
+                || (flags & INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY && tuim::string::is_alphanumeric(code))
+                || (flags == INPUT_TEXT_FLAGS_NONE)) {
+                    std::string str = tuim::string::int_to_utf8(code);
+                    for(size_t i = 0; i < str.length(); i++)
+                        (*value).insert(value->begin() + cursor + i, str[i]);
+                    cursor += str.length();
+                }
             }
         }
     }
@@ -1227,6 +1239,16 @@ size_t tuim::string::char_length(char c) {
     if((0b00011111 & (c >> 3)) == 0b11110)
         return 4;
     return 1;
+}
+
+bool tuim::string::is_alphanumeric(uint32_t code) {
+    #define BETWEEN(a, b) (code >= a && code <= b)
+    if(BETWEEN('0', '9') || BETWEEN('a', 'z') || BETWEEN('A', 'Z'))
+        return true;
+    if(BETWEEN(50048, 50070) || BETWEEN(50072, 50102) || BETWEEN(50104, 50111)) //À-Ö && Ø-ö && ø-ÿ
+        return true;
+
+    return false;
 }
 
 void tuim::font::register_style(const std::string &code, const style &style) {
