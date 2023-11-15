@@ -270,6 +270,7 @@ namespace tuim {
     void set_title(std::string title); /* Set terminal title */
     void set_cursor(vec2 pos); /* Change terminal cursor position */
     vec2 get_cursor(); /* Get terminal cursor position */
+    void gotoxy(vec2 pos);
     void new_line(); /* Break to a new line */
     void clear(); /* Clear terminal output */
     void clear_line(); /* Clear terminal output */
@@ -384,12 +385,18 @@ void tuim::set_title(std::string title) {
 }
 
 void tuim::set_cursor(vec2 pos) {
-    printf("\033[%d;%df", pos.y, pos.x);
+    context* ctx = get_context();
+    ctx->cursor = pos;
 }
 
 tuim::vec2 tuim::get_cursor() {
     context* ctx = get_context();
     return ctx->cursor;
+}
+
+void tuim::gotoxy(vec2 pos) {
+    tuim::set_cursor(pos);
+    printf("\033[%d;%df", pos.y, pos.x);
 }
 
 void tuim::new_line() {
@@ -400,6 +407,7 @@ void tuim::clear() {
     printf("\033[0m\033[2J\033[H");
     ctx->style_modes.clear();
     ctx->pressed_key = tuim::keyboard::NONE;
+    set_cursor({0, 0});
 }
 
 void tuim::clear_line() {
@@ -408,13 +416,15 @@ void tuim::clear_line() {
     set_cursor({pos.y, 0});
 }
 
-void tuim::print_to_screen(const std::string& str)
-{
+void tuim::print_to_screen(const std::string& str) {
     context* ctx = get_context();
-    for(auto& c : str)
-    {
-        if(c == '\n') ctx->cursor.y++;
-        else ctx->cursor.x += string::length(str);
+    for(int i = 0; i < str.length();) {
+        int l = tuim::string::char_length(str.at(i));
+        if(l == 1 && str.at(i) == '\n') {
+            set_cursor({0, ctx->cursor.y+1});
+        }
+        else ctx->cursor.x++;
+        i += l;
     }
     update_container();
     printf("%s", str.c_str());
@@ -636,8 +646,7 @@ std::vector<int> tuim::calc_columns_width(const std::vector<std::string> &column
     return columns_width;
 }
 
-tuim::vec2 tuim::calc_relative_position()
-{
+tuim::vec2 tuim::calc_relative_position() {
     context* ctx = get_context();
     container ctn = ctx->containers_stack.back();
     vec2 pos = ctn.cursor;
