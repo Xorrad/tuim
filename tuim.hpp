@@ -315,7 +315,8 @@ namespace tuim {
     vec2 calc_relative_position(); /* Calculate the coordinates from which to start drawing an item. */
 
     void text(std::string id, std::string text); /* Display text */
-    void text(std::string id); /* Display text */
+    void text(std::string text); /* Display text */
+    void hr(int length);
     bool button(std::string id, std::string text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
     template <typename T> bool slider(std::string id, T* value, T min, T max, T step); /* Display a number slider */
     template <typename T> bool input_number(std::string id, std::string text, T* value, T min, T max, T step); /* Display a input for numbers */
@@ -676,6 +677,11 @@ void tuim::text(std::string text) {
     tuim::item item = tuim::item{ tuim::str_to_id(text), tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
     tuim::print(text.c_str());
+}
+
+void tuim::hr(int length) {
+    std::string str = "\n&s" + tuim::string::fill("―", length) + "&r\n";
+    tuim::text(str);
 }
 
 bool tuim::button(std::string id, std::string text, button_flags flags) {
