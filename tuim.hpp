@@ -847,7 +847,7 @@ bool tuim::input_text(std::string id, std::string* value, std::string default_va
             if(tuim::is_item_active()) tuim::set_active_id(0);
             else {
                 tuim::set_active_id(item.id);
-                cursor = tuim::calc_text_width(*value);
+                cursor = value->length();
             }
         }
         if(tuim::is_item_active()) tuim::print("[*] ");
