@@ -240,7 +240,7 @@ namespace tuim {
             last_active_id = 0;
             hovered_id = 0;
 
-            cursor = {0, 0};
+            cursor = {1, 1};
             cursor_visible = true;
 
             pressed_key = tuim::keyboard::NONE;
@@ -314,16 +314,17 @@ namespace tuim {
 
     vec2 calc_relative_position(); /* Calculate the coordinates from which to start drawing an item. */
 
-    void text(std::string id, std::string text); /* Display text */
-    void text(std::string text); /* Display text */
+    void text(const std::string& id, const std::string& text); /* Display text */
+    void text(const std::string& text); /* Display text */
     void hr(int length);
-    bool button(std::string id, std::string text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
-    template <typename T> bool slider(std::string id, T* value, T min, T max, T step); /* Display a number slider */
-    template <typename T> bool input_number(std::string id, std::string text, T* value, T min, T max, T step); /* Display a input for numbers */
-    template <typename U> bool input_enum(std::string id, std::string text, U* value, int max, const std::map<U, std::string>& labels); /* Display a input for enums */
-    bool input_bool(std::string id, std::string text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); /* Display a input for booleans */
-    bool input_text(std::string id, std::string* value, std::string default_value, input_text_flags flags = INPUT_TEXT_FLAGS_NONE); /* Display a input for string */
-    bool checkbox(std::string id, std::string text, bool* value);
+    void paragraph(const std::string& id, const std::string& text, int width);
+    bool button(const std::string& id, const std::string& text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
+    template <typename T> bool slider(const std::string& id, T* value, T min, T max, T step); /* Display a number slider */
+    template <typename T> bool input_number(const std::string& id, const std::string& text, T* value, T min, T max, T step); /* Display a input for numbers */
+    template <typename U> bool input_enum(const std::string& id, const std::string& text, U* value, int max, const std::map<U, std::string>& labels); /* Display a input for enums */
+    bool input_bool(const std::string& id, const std::string& text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); /* Display a input for booleans */
+    bool input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags = INPUT_TEXT_FLAGS_NONE); /* Display a input for string */
+    bool checkbox(const std::string& id, const std::string& text, bool* value);
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
     container& get_container();
@@ -404,7 +405,7 @@ tuim::vec2 tuim::get_cursor() {
 }
 
 void tuim::gotoxy(vec2 pos) {
-    printf("\033[%d;%df", pos.y, pos.x);
+    printf("\033[%d;%dH", pos.y, pos.x);
     tuim::set_cursor(pos);
 }
 
@@ -416,20 +417,23 @@ void tuim::clear() {
     printf("\033[0m\033[2J\033[H");
     ctx->style_modes.clear();
     ctx->pressed_key = tuim::keyboard::NONE;
-    set_cursor({0, 0});
+    set_cursor({1, 1});
 }
 
 void tuim::clear_line() {
     printf("\033[2K");
-    set_cursor({0, get_cursor().y});
+    set_cursor({1, get_cursor().y});
 }
 
 void tuim::print_to_screen(const std::string& str) {
     context* ctx = get_context();
     for(size_t i = 0; i < str.length();) {
         size_t l = tuim::string::char_length(str.at(i));
-        if(l == 1 && str.at(i) == '\n') {
-            set_cursor({0, ctx->cursor.y+1});
+        if(str.at(i) == '\n') ctx->cursor = {1, ctx->cursor.y+1};
+        else if(str.at(i) == '\033') {
+            do {
+                i++;
+            } while(i < str.length() && !((str.at(i) >= 'a' && str.at(i) <= 'z') || (str.at(i) >= 'A' && str.at(i) <= 'Z')));
         }
         else ctx->cursor.x++;
         i += l;
@@ -455,10 +459,8 @@ void tuim::print(const char* fmt, Args ... args) {
     print_to_screen(parsed);
 
     int width = calc_text_width(parsed);
-    
     vec2 pos = get_container().cursor;
     pos.x += width;
-
     move_container_cursor(pos);
 }
 
@@ -662,7 +664,7 @@ tuim::vec2 tuim::calc_relative_position() {
     return pos;
 }
 
-void tuim::text(std::string id, std::string text) {
+void tuim::text(const std::string& id, const std::string& text) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
 
@@ -672,7 +674,7 @@ void tuim::text(std::string id, std::string text) {
     // tuim::print("\n");
 }
 
-void tuim::text(std::string text) {
+void tuim::text(const std::string& text) {
     tuim::item item = tuim::item{ tuim::str_to_id(text), tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
     tuim::print(text.c_str());
@@ -683,7 +685,34 @@ void tuim::hr(int length) {
     tuim::text(str);
 }
 
-bool tuim::button(std::string id, std::string text, button_flags flags) {
+void tuim::paragraph(const std::string& id, const std::string& text, int width) {
+    tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_DISABLED };
+    tuim::add_item(item);
+
+    vec2 cursor = get_cursor();
+    int left = cursor.x;
+    int i = 0;
+    while(i < text.length()) {
+        int j = i;
+        int real_length = 0;
+        while(j < text.length() && text.at(j) != ' ') {
+            j += tuim::string::char_length(text.at(j));
+            real_length++;
+        }
+
+        std::string word = text.substr(i, (j-i));
+        if((cursor.x + real_length - left) > width) {
+            cursor = {left, cursor.y+1};
+            tuim::gotoxy(cursor);
+        }
+        tuim::print(word.c_str());
+        if(j < text.length()) tuim::print(" ");
+        cursor = get_cursor();
+        i = j+1;
+    }
+}
+
+bool tuim::button(const std::string& id, const std::string& text, button_flags flags) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
@@ -701,7 +730,7 @@ bool tuim::button(std::string id, std::string text, button_flags flags) {
 }
 
 template <typename T>
-bool tuim::slider(std::string id, T* value, T min, T max, T step) {
+bool tuim::slider(const std::string& id, T* value, T min, T max, T step) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
@@ -736,7 +765,7 @@ bool tuim::slider(std::string id, T* value, T min, T max, T step) {
 }
 
 template <typename T>
-bool tuim::input_number(std::string id, std::string text, T* value, T min, T max, T step) {
+bool tuim::input_number(const std::string& id, const std::string& text, T* value, T min, T max, T step) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
@@ -764,7 +793,7 @@ bool tuim::input_number(std::string id, std::string text, T* value, T min, T max
 }
 
 template <typename U>
-bool tuim::input_enum(std::string id, std::string text, U* value, int max, const std::map<U, std::string>& labels) {
+bool tuim::input_enum(const std::string& id, const std::string& text, U* value, int max, const std::map<U, std::string>& labels) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
@@ -787,11 +816,11 @@ bool tuim::input_enum(std::string id, std::string text, U* value, int max, const
     return tuim::is_item_active();
 }
 
-bool tuim::input_bool(std::string id, std::string text, bool* value, const std::map<bool, std::string>& labels) {
+bool tuim::input_bool(const std::string& id, const std::string& text, bool* value, const std::map<bool, std::string>& labels) {
     return input_enum<bool>(id, text, value, 2, labels);
 }
 
-bool tuim::input_text(std::string id, std::string* value, std::string default_value, input_text_flags flags) {
+bool tuim::input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags) {
     context* ctx = get_context();
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
@@ -871,7 +900,7 @@ bool tuim::input_text(std::string id, std::string* value, std::string default_va
     return tuim::is_item_active();
 }
 
-bool tuim::checkbox(std::string id, std::string text, bool* value) {
+bool tuim::checkbox(const std::string& id, const std::string& text, bool* value) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
