@@ -372,15 +372,15 @@ void tuim::create_context() {
 }
 
 void tuim::delete_context() {
-    delete tuim::ctx;
     set_cursor_visible(true);
     printf("\033[?1049l"); // disabled alternate buffer
+    delete tuim::ctx;
 }
 
 void tuim::set_cursor_visible(bool cursor) {
     context* ctx = get_context();
     ctx->cursor_visible = cursor;
-    printf("\033[?25l");
+    printf("\033[?25%c", (cursor ? 'h' : 'l'));
 }
 
 bool tuim::is_cursor_visible() {
@@ -404,12 +404,12 @@ tuim::vec2 tuim::get_cursor() {
 }
 
 void tuim::gotoxy(vec2 pos) {
-    tuim::set_cursor(pos);
     printf("\033[%d;%df", pos.y, pos.x);
+    tuim::set_cursor(pos);
 }
 
 void tuim::new_line() {
-    printf("\n");
+    print_to_screen("\n");
 }
 
 void tuim::clear() {
@@ -420,9 +420,8 @@ void tuim::clear() {
 }
 
 void tuim::clear_line() {
-    vec2 pos = get_cursor();
     printf("\033[2K");
-    set_cursor({pos.y, 0});
+    set_cursor({0, get_cursor().y});
 }
 
 void tuim::print_to_screen(const std::string& str) {
