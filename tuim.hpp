@@ -21,6 +21,7 @@
 #include <memory>
 #include <sstream>
 #include <regex>
+#include <math.h>
 
 #ifdef __linux__
 #include <unistd.h>
@@ -317,7 +318,7 @@ namespace tuim {
     void text(const std::string& id, const std::string& text); /* Display text */
     void text(const std::string& text); /* Display text */
     void hr(int length);
-    void paragraph(const std::string& id, const std::string& text, int width);
+    void paragraph(const std::string& id, const std::string& text, unsigned int width);
     bool button(const std::string& id, const std::string& text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
     template <typename T> bool slider(const std::string& id, T* value, T min, T max, T step); /* Display a number slider */
     template <typename T> bool input_number(const std::string& id, const std::string& text, T* value, T min, T max, T step); /* Display a input for numbers */
@@ -351,7 +352,9 @@ namespace tuim {
         std::string int_to_utf8(uint32_t code);
         bool is_printable(uint32_t code);
         size_t char_length(char c);
+        uint32_t to_lowercase(uint32_t code);
         bool is_alphanumeric(uint32_t code);
+        bool is_vowel(uint32_t code);
     }
 
 }
@@ -685,30 +688,84 @@ void tuim::hr(int length) {
     tuim::text(str);
 }
 
-void tuim::paragraph(const std::string& id, const std::string& text, int width) {
+void tuim::paragraph(const std::string& id, const std::string& text, unsigned int width) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
 
     vec2 cursor = get_cursor();
-    int left = cursor.x;
-    int i = 0;
+    int left = cursor.x; //Position of the start of line (x-axis).
+    size_t i = 0;
+
+    std::string line = "";
+    size_t line_ch_len = 0;
+    size_t line_blank_count = 0;
+
     while(i < text.length()) {
-        int j = i;
-        int real_length = 0;
-        while(j < text.length() && text.at(j) != ' ') {
-            j += tuim::string::char_length(text.at(j));
-            real_length++;
+        size_t word_bytes_len = 0;
+        size_t word_ch_len = 0;
+        size_t word_pos = i;
+
+        // Count byte and char length of next word (until end of text or space).
+        while(word_pos < text.length() && text.at(word_pos) != ' ') {
+            word_bytes_len += tuim::string::char_length(text.at(word_pos));
+            word_ch_len++;
+            word_pos = i + word_bytes_len;
         }
 
-        std::string word = text.substr(i, (j-i));
-        if((cursor.x + real_length - left) > width) {
+        // Handle the end of line (need at least one word).
+        if((line_ch_len > 0 && (line_ch_len + word_ch_len) >= width)) {
+
+            // Count the number of spaces/words for each line and find the number of blank missing to reach EOL.
+            // Distribute additional spaces between each words to fill the blank at EOL.
+            int diff = width - line_ch_len;
+            if(diff > 0) {
+                // step = ((float) line_blank_count / (float) diff);
+                float step = (float) diff / (float) (line_blank_count);
+                int blank_count = 0;
+                float acc = 0.f;
+                while(blank_count < diff) {
+                    for(size_t k = 0; k < line.length(); k += tuim::string::char_length(line.at(k))) {
+                        if(blank_count == diff)
+                            break;
+                        if(line.at(k) != ' ')
+                            continue;
+                        if(acc >= 1.f) {
+                            line.insert(k, 1, ' ');
+                            k++;
+                            blank_count++;
+                            acc -= 1.f;
+                        }
+                        acc += step;
+                    }
+                }
+            }
+
+            tuim::print(line.c_str());
+            cursor = get_cursor();
             cursor = {left, cursor.y+1};
             tuim::gotoxy(cursor);
+
+            line = "";
+            line_ch_len = 0;
+            line_blank_count = 0;
         }
-        tuim::print(word.c_str());
-        if(j < text.length()) tuim::print(" ");
-        cursor = get_cursor();
-        i = j+1;
+
+        //Add space between words.
+        if(line_ch_len > 0) {
+            line += " ";
+            line_ch_len++;
+            line_blank_count++;
+        }
+
+        line += text.substr(i, word_bytes_len);
+        line_ch_len += word_ch_len;
+        
+        // Print line without extra blank if it is the last word of the text.
+        if(word_pos + 1 > text.length()) {
+            tuim::print(line.c_str());
+        }
+
+        i = word_pos + 1;
     }
 }
 
@@ -1275,11 +1332,57 @@ size_t tuim::string::char_length(char c) {
     return 1;
 }
 
+uint32_t tuim::string::to_lowercase(uint32_t code) {
+    //ß capital letter is ẞ
+    if(code == 0xC39F)
+        return 0xE1BA9E;
+    
+    //ÿ returns Ÿ which is not in order.
+    if(code == 0xC3BF)
+        return 0xC29F;
+
+    // For latin characters, the difference between the uppercase 
+    // and lowercase codepoint is 0x20 (i.e à-À = 0x20).
+    if(code <= 0xC3BF)
+        return code + 0x20;
+
+    //Ǆ and Ǳ have both two capital letters.
+    if(code == 	0xC784 || code == 0xC7B1)
+        return code + 0x02;
+
+    // For extended latin characters, the difference between the uppercase 
+    // and lowercase codepoint is mostly 0x01. There are some exceptions such as
+    // Ǆ above.
+    if(code <= 0xC8B3)
+        return code + 0x01;
+
+    // TODO: Complete with greeks and cyrillic characters.
+
+    return code;
+}   
+
 bool tuim::string::is_alphanumeric(uint32_t code) {
     #define BETWEEN(a, b) (code >= a && code <= b)
     if(BETWEEN('0', '9') || BETWEEN('a', 'z') || BETWEEN('A', 'Z'))
         return true;
     if(BETWEEN(50048, 50070) || BETWEEN(50072, 50102) || BETWEEN(50104, 50111)) //À-Ö && Ø-ö && ø-ÿ
+        return true;
+
+    return false;
+}
+
+bool tuim::string::is_vowel(uint32_t code) {
+    code = to_lowercase(code);
+    #define IS(code, c) (code == static_cast<unsigned int>(c))
+    #define BETWEEN(a, b) (code >= a && code <= b)
+
+    if(IS(code, 'a') || IS(code, 'e') || IS(code, 'i') || IS(code, 'o') || IS(code, 'u'))
+        return true;
+
+    if(BETWEEN(0xC3A0, 0xC3A6)
+        || BETWEEN(0xC3A8, 0xC3AF)
+        || BETWEEN(0xC3B2, 0xC3B6)
+        || BETWEEN(0xC3B8, 0xC3BD))
         return true;
 
     return false;
