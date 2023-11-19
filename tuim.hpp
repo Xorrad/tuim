@@ -348,6 +348,7 @@ namespace tuim {
         size_t length(const std::string& str);
         std::string fill(const std::string& str, size_t length);
         std::string parse_styles(const std::string& str); /* Replace style codes with ansi escape sequences */
+        std::string escape_styles(const std::string& str);
         uint32_t utf8_to_int(const std::string& c);
         std::string int_to_utf8(uint32_t code);
         bool is_printable(uint32_t code);
@@ -948,14 +949,19 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
     size_t i = 0;
     while(i < value->length()) {
         size_t l = tuim::string::char_length(value->at(i));
-        std::string str = value->substr(i, l);
+        std::string ch = value->substr(i, l);
 
-        if(tuim::is_item_active() && !tuim::keyboard::is_pressed() && cursor == i) tuim::print("#_ffffff#555555%s&r#_555555", str.c_str()); //█
-        else tuim::print("%s", str.c_str());
+        if(tuim::is_item_active() && (ch.at(0) == TUIM_STYLE_CODE || ch.at(0) == TUIM_COLOR_CUSTOM))
+            ch = "\\" + ch;
+
+        if(tuim::is_item_active() && !tuim::keyboard::is_pressed() && cursor == i) {
+            tuim::print("#_ffffff#555555%s&r#_555555", ch.c_str());
+        }
+        else tuim::print("%s", ch.c_str());
         
         i += l;
     }
-    if(tuim::is_item_active() && !tuim::keyboard::is_pressed() && cursor == i) tuim::print("#_ffffff "); //█
+    if(tuim::is_item_active() && !tuim::keyboard::is_pressed() && cursor == i) tuim::print("#_ffffff ");
     tuim::print("&r");
 
     return tuim::is_item_active();
@@ -1229,18 +1235,14 @@ std::string tuim::string::parse_styles(const std::string &str) {
         if(str[i] == TUIM_STYLE_CODE) {
             bool background = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND);
             size_t code_length = background ? 2 : 1;
-            if(str.length() - i < code_length) continue;
+            if(str.length() - i < code_length)
+                goto end;
 
             std::string raw_code = str.substr(i + 1 + background, 1);
             std::string code = str.substr(i + 1, code_length);
 
-            // TODO: handle exception if code doesn't exist.
             if(ctx->style_codes.count(raw_code) == 0)
-            {
-                parsed += str[i];
-                continue;
-                // throw std::runtime_error("Error: color code " + raw_code + " doesn't exist!");
-            }
+                goto end;
 
             font::style style = ctx->style_codes.at(raw_code);
 
@@ -1275,12 +1277,85 @@ std::string tuim::string::parse_styles(const std::string &str) {
 
         if(str[i] == TUIM_COLOR_CUSTOM) {
             size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 7 : 6;
-            if(str.length() - i < code_length) continue;
+            if(str.length() - i < code_length)
+                goto end;
 
             std::string code = str.substr(i + 1, code_length);
+            bool is_hex = true;
+
+            for(size_t i = 0; i < code.length(); i += tuim::string::char_length(code.at(i))) {
+                if(i == 0 && code.at(i) == '_') continue;
+                if((code.at(i) < '0' || code.at(i) > '9') && (code.at(i) < 'a' || code.at(i) > 'f')) {
+                    is_hex = false;
+                    break;
+                }
+            }
+            if(!is_hex)
+                goto end;
 
             tuim::color::color color = tuim::color::from_hex(code);
             parsed += tuim::color::to_ansi(color);
+
+            i += code_length;
+            continue;
+        }
+
+        end:
+        parsed += str[i];
+    }
+
+    return parsed;
+}
+
+std::string tuim::string::escape_styles(const std::string& str) {
+    bool escaped = false;
+    std::string parsed = "";
+
+    for(size_t i = 0; i < str.length(); i++) {
+
+        if(escaped) {
+            /* Add an anti-slash if there was not any color code to escape */
+            if(str[i] != TUIM_STYLE_CODE && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') parsed += "\\";
+            parsed += str[i];
+            escaped = false;
+            continue;
+        }
+
+        if(str[i] == '\\') {
+            escaped = true;
+            continue;
+        }
+
+        if(str[i] == TUIM_STYLE_CODE) {
+            bool background = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND);
+            size_t code_length = background ? 3 : 2;
+            if(str.length() - i < code_length) {
+                parsed += str[i];
+                continue;
+            }
+
+            std::string raw_code = str.substr(i + 1 + background, 1);
+            std::string code = str.substr(i, code_length);
+
+            if(ctx->style_codes.count(raw_code) == 0)
+            {
+                parsed += str[i];
+                continue;
+            }
+
+            parsed += "\\" + code;
+            continue;
+        }
+
+        if(str[i] == TUIM_COLOR_CUSTOM) {
+            size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 8 : 7;
+            if(str.length() - i < code_length) {
+                parsed += str[i];
+                continue;
+            }
+
+            std::string code = str.substr(i, code_length);
+            parsed += "\\" + str[i] + code;
 
             i += code_length;
             continue;

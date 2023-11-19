@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
 
         tuim::print("value1: %d\n", value1);
         tuim::print("value2: %f\n", value2);
-        tuim::print("value3: %s\n", value3.c_str());
+        tuim::print("value3: %s&r\n", value3.c_str());
         tuim::print("value4: %d %s\n", value4, weapon_labels.at(value4).c_str());
         tuim::print("value5: %d\n\n", value5);
         if(key != 0) last_key = key;
