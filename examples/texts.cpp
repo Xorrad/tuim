@@ -6,6 +6,8 @@ int main(int argc, char* argv[])
     tuim::set_title("tuim demo");
     tuim::set_cursor_visible(false);
 
+    tuim::font::register_style("c", tuim::font::make_style(tuim::color::from_hex(0x888888)));
+
     tuim::keyboard::keycode key;
     int paragraph_width = 50;
 
@@ -24,7 +26,7 @@ int main(int argc, char* argv[])
         tuim::text("#ff0000red&r\n");
         tuim::text("#_ff0000background red&r\n\n");
 
-        std::string text1 = "Tyrion was born in 273 AC as the third-born child to Lord Tywin and Lady Joanna Lannister. Joanna died giving birth to him, and as a result his father blames him for her death.[29] Tales about Tyrion were spread immediately after his birth; At Oldtown, it was said that Tyrion was a monster, with a tail, monstrous huge head, thick black hair, a beard, an evil eye, lion's claws, with teeth so long he was not able to close his mouth, and both male and female genitals.[7] It was said that Tyrion's birth was an omen to famine, plague and war,[7] and the smallfolk named him \"Lord Tywin\'s Doom\" and \"Lord Tywin\'s Bane\".[8] King Aerys II Targaryen stated that Tyrion was a punishment for Tywin's arrogance,[8] and the same was said by begging brothers in Oldtown, stating that Tywin had made himself greater than the king, which was only allowed by a god.[7]\n\n";
+        std::string text1 = "Tyrion was born in 273 AC as the third-born child to Lord Tywin and Lady Joanna Lannister. Joanna died giving birth to him, and as a result his father blames him for her death.&c[29]&r Tales about Tyrion were spread immediately after his birth; At Oldtown, it was said that Tyrion was a monster, with a tail, monstrous huge head, thick black hair, a beard, an evil eye, lion's claws, with teeth so long he was not able to close his mouth, and both male and female genitals.&c[7]&r It was said that Tyrion's birth was an omen to famine, plague and war,&c[7]&r and the smallfolk named him \"Lord Tywin\'s Doom\" and \"Lord Tywin\'s Bane\".&c[8]&r King Aerys II Targaryen stated that Tyrion was a punishment for Tywin's arrogance,&c[8]&r and the same was said by begging brothers in Oldtown, stating that Tywin had made himself greater than the king, which was only allowed by a god.&c[7]&r\n\n";
         std::string text2 = "Hello world, how are you today my friend?";
         tuim::gotoxy(tuim::vec2{10, tuim::get_cursor().y});
         tuim::paragraph("#p1", text1, paragraph_width);

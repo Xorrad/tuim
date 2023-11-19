@@ -345,9 +345,9 @@ namespace tuim {
     }
 
     namespace string {
-        size_t length(const std::string &str);
-        std::string fill(const std::string &str, size_t length);
-        std::string parse_styles(const std::string &str); /* Replace style codes with ansi escape sequences */
+        size_t length(const std::string& str);
+        std::string fill(const std::string& str, size_t length);
+        std::string parse_styles(const std::string& str); /* Replace style codes with ansi escape sequences */
         uint32_t utf8_to_int(const std::string& c);
         std::string int_to_utf8(uint32_t code);
         bool is_printable(uint32_t code);
@@ -712,6 +712,9 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
             word_pos = i + word_bytes_len;
         }
 
+        std::string word = text.substr(i, word_bytes_len);
+        word_ch_len = tuim::calc_text_width(word);
+
         // Handle the end of line (need at least one word).
         if((line_ch_len > 0 && (line_ch_len + word_ch_len) >= width)) {
 
@@ -757,7 +760,7 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
             line_blank_count++;
         }
 
-        line += text.substr(i, word_bytes_len);
+        line += word;
         line_ch_len += word_ch_len;
         
         // Print line without extra blank if it is the last word of the text.
@@ -767,6 +770,7 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
 
         i = word_pos + 1;
     }
+    tuim::print("&r");
 }
 
 bool tuim::button(const std::string& id, const std::string& text, button_flags flags) {
