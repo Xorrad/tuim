@@ -13,6 +13,7 @@
 #define TUIM_CPP
 
 #include <iostream>
+#include <string>
 #include <string.h>
 #include <filesystem>
 #include <map>
@@ -233,6 +234,7 @@ namespace tuim {
 
         std::vector<item> items_stack;
         std::vector<container> containers_stack;
+        std::vector<uint32_t> margins_stack;
 
         std::vector<printing_info> printings_stack; /* Store what has been drawn by the last item */
 
@@ -261,6 +263,8 @@ namespace tuim {
 
             items_stack = std::vector<item>(0);
             containers_stack = std::vector<container>{ container{{0, 0}} };
+            margins_stack = std::vector<uint32_t>(0);
+            
 
             printings_stack = std::vector<printing_info>(0);
         }
@@ -282,8 +286,8 @@ namespace tuim {
     void new_line(); /* Break to a new line */
     void clear(); /* Clear terminal output */
     void clear_line(); /* Clear terminal output */
+    void print_to_screen(std::string str); /* Print text to screen and reset style */
     template<typename ... Args> void print(const char* fmt, Args ... args); /* Format text for printing to screen */
-    void print_to_screen(const std::string& str); /* Print text to screen and reset style */
 
     context* get_context(); /* Get tuim user interface global context */
 
@@ -327,6 +331,10 @@ namespace tuim {
     bool input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags = INPUT_TEXT_FLAGS_NONE); /* Display a input for string */
     bool checkbox(const std::string& id, const std::string& text, bool* value);
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
+
+    void push_margin(uint32_t margin);
+    void pop_margin();
+    uint32_t get_active_margin();
 
     container& get_container();
     void start_container();
@@ -429,11 +437,20 @@ void tuim::clear_line() {
     set_cursor({1, get_cursor().y});
 }
 
-void tuim::print_to_screen(const std::string& str) {
+void tuim::print_to_screen(std::string str) {
     context* ctx = get_context();
     for(size_t i = 0; i < str.length();) {
         size_t l = tuim::string::char_length(str.at(i));
-        if(str.at(i) == '\n') ctx->cursor = {1, ctx->cursor.y+1};
+        if(str.at(i) == '\n') {
+            ctx->cursor = { (int) get_active_margin(), ctx->cursor.y+1};
+            if(ctx->cursor.x > 1) {
+                std::string margin = "\033[" + std::to_string(ctx->cursor.x) + "G";
+                str = str.substr(0, i) + margin + str.substr(i, str.length());
+                i += margin.length();
+                // printf("margin: %d", ctx->cursor.x);
+                // printf("\033[%dG", ctx->cursor.x);
+            }
+        }
         else if(str.at(i) == '\033') {
             do {
                 i++;
@@ -694,12 +711,16 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
     tuim::add_item(item);
 
     vec2 cursor = get_cursor();
-    int left = cursor.x; //Position of the start of line (x-axis).
+    int margin = cursor.x;
     size_t i = 0;
+    
+    tuim::push_margin(margin);
 
     std::string line = "";
     size_t line_ch_len = 0;
     size_t line_blank_count = 0;
+
+    bool line_break = false;
 
     while(i < text.length()) {
         size_t word_bytes_len = 0;
@@ -707,51 +728,55 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
         size_t word_pos = i;
 
         // Count byte and char length of next word (until end of text or space).
-        while(word_pos < text.length() && text.at(word_pos) != ' ') {
+        while(word_pos < text.length() && text.at(word_pos) != ' ' && text.at(word_pos) != '\n') {
             word_bytes_len += tuim::string::char_length(text.at(word_pos));
             word_ch_len++;
             word_pos = i + word_bytes_len;
         }
 
+        bool skip_next_line = (word_pos < text.length() && text.at(word_pos) == '\n');
         std::string word = text.substr(i, word_bytes_len);
         word_ch_len = tuim::calc_text_width(word);
 
         // Handle the end of line (need at least one word).
-        if((line_ch_len > 0 && (line_ch_len + word_ch_len) >= width)) {
+        if((line_ch_len > 0 && (line_ch_len + word_ch_len) >= width) || line_break) {
 
             // Count the number of spaces/words for each line and find the number of blank missing to reach EOL.
             // Distribute additional spaces between each words to fill the blank at EOL.
-            int diff = width - line_ch_len;
-            if(diff > 0) {
-                // step = ((float) line_blank_count / (float) diff);
-                float step = (float) diff / (float) (line_blank_count);
-                int blank_count = 0;
-                float acc = 0.f;
-                while(blank_count < diff) {
-                    for(size_t k = 0; k < line.length(); k += tuim::string::char_length(line.at(k))) {
-                        if(blank_count == diff)
-                            break;
-                        if(line.at(k) != ' ')
-                            continue;
-                        if(acc >= 1.f) {
-                            line.insert(k, 1, ' ');
-                            k++;
-                            blank_count++;
-                            acc -= 1.f;
+            if(line_ch_len > 0) {
+                int diff = width - line_ch_len;
+                if(diff > 0 && !line_break) {
+                    // step = ((float) line_blank_count / (float) diff);
+                    float step = (float) diff / (float) (line_blank_count);
+                    int blank_count = 0;
+                    float acc = 0.f;
+                    while(blank_count < diff) {
+                        for(size_t k = 0; k < line.length(); k += tuim::string::char_length(line.at(k))) {
+                            if(blank_count == diff)
+                                break;
+                            if(line.at(k) != ' ')
+                                continue;
+                            if(acc >= 1.f) {
+                                line.insert(k, 1, ' ');
+                                k++;
+                                blank_count++;
+                                acc -= 1.f;
+                            }
+                            acc += step;
                         }
-                        acc += step;
                     }
                 }
+                tuim::print(line.c_str());
             }
 
-            tuim::print(line.c_str());
             cursor = get_cursor();
-            cursor = {left, cursor.y+1};
+            cursor = {margin, cursor.y+1 - skip_next_line};
             tuim::gotoxy(cursor);
 
             line = "";
             line_ch_len = 0;
             line_blank_count = 0;
+            line_break = false;
         }
 
         //Add space between words.
@@ -761,9 +786,15 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
             line_blank_count++;
         }
 
-        line += word;
-        line_ch_len += word_ch_len;
-        
+        if(skip_next_line) {
+            line_break = true;
+        }
+        else {
+            line += word;
+            line_ch_len += word_ch_len;
+
+        }
+
         // Print line without extra blank if it is the last word of the text.
         if(word_pos + 1 > text.length()) {
             tuim::print(line.c_str());
@@ -772,6 +803,8 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
         i = word_pos + 1;
     }
     tuim::print("&r");
+
+    tuim::pop_margin();
 }
 
 bool tuim::button(const std::string& id, const std::string& text, button_flags flags) {
@@ -1066,6 +1099,24 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
     }
 
     print_table_border(u8"└", u8"┴", u8"┘");
+}
+
+void tuim::push_margin(uint32_t margin) {
+    context* ctx = get_context();
+    ctx->margins_stack.push_back(margin);
+}
+
+void tuim::pop_margin() {
+    context* ctx = get_context();
+    if(ctx->margins_stack.size() > 0)
+        ctx->margins_stack.pop_back();
+}
+
+uint32_t tuim::get_active_margin() {
+    context* ctx = get_context();
+    if(ctx->margins_stack.size() == 0)
+        return 1;
+    return ctx->margins_stack.back();
 }
 
 tuim::container& tuim::get_container() {
