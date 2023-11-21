@@ -426,7 +426,7 @@ void tuim::new_line() {
 }
 
 void tuim::clear() {
-    printf("\033[0m\033[2J\033[H");
+    printf("\033[0m\033[2J\033[3J\033[H");
     ctx->style_modes.clear();
     ctx->pressed_key = tuim::keyboard::NONE;
     set_cursor({1, 1});
@@ -735,18 +735,19 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
         }
 
         bool skip_next_line = (word_pos < text.length() && text.at(word_pos) == '\n');
+        bool is_eol = line_ch_len > 0 && (line_ch_len + word_ch_len) >= width;
+
         std::string word = text.substr(i, word_bytes_len);
         word_ch_len = tuim::calc_text_width(word);
 
         // Handle the end of line (need at least one word).
-        if((line_ch_len > 0 && (line_ch_len + word_ch_len) >= width) || line_break) {
+        if(is_eol || line_break) {
 
             // Count the number of spaces/words for each line and find the number of blank missing to reach EOL.
             // Distribute additional spaces between each words to fill the blank at EOL.
             if(line_ch_len > 0) {
                 int diff = width - line_ch_len;
-                if(diff > 0 && !line_break) {
-                    // step = ((float) line_blank_count / (float) diff);
+                if(diff > 0 && !line_break && line_blank_count > 0) {
                     float step = (float) diff / (float) (line_blank_count);
                     int blank_count = 0;
                     float acc = 0.f;
@@ -767,10 +768,11 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
                     }
                 }
                 tuim::print(line.c_str());
+                // printf("\tdiff: %d ; step: %f ; acc: %f ; t: %d ; c: %d", diff, step, acc, line_blank_count, blank_count);
             }
 
             cursor = get_cursor();
-            cursor = {margin, cursor.y+1 - skip_next_line};
+            cursor = {margin, cursor.y+1 - (is_eol && line_break)};
             tuim::gotoxy(cursor);
 
             line = "";
@@ -786,23 +788,25 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
             line_blank_count++;
         }
 
-        if(skip_next_line) {
-            line_break = true;
-        }
-        else {
-            line += word;
-            line_ch_len += word_ch_len;
+        line += word;
+        line_ch_len += word_ch_len;
 
-        }
+        if(skip_next_line)
+            line_break = true;
 
         // Print line without extra blank if it is the last word of the text.
-        if(word_pos + 1 > text.length()) {
-            tuim::print(line.c_str());
-        }
+        // if(word_pos + 1 > text.length()) {
+        // }
 
         i = word_pos + 1;
     }
+
+    if(line_ch_len > 0) {
+        tuim::print(line.c_str());
+    }
+
     tuim::print("&r");
+    for(int i = 0; i < 1 + line_break; i++) tuim::print("\n");
 
     tuim::pop_margin();
 }
