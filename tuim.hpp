@@ -289,6 +289,8 @@ namespace tuim {
     void clear_line(); /* Clear terminal output */
     void print_to_screen(std::string str); /* Print text to screen and reset style */
     template<typename ... Args> void print(const char* fmt, Args ... args); /* Format text for printing to screen */
+    void show_user_inputs();
+    void hide_user_inputs();
 
     context* get_context(); /* Get tuim user interface global context */
 
@@ -383,12 +385,14 @@ void tuim::init(int argc, char* argv[]) {
 
 void tuim::create_context() {
     printf("\033[?1049h"); // enable alternate buffer
+    tuim::hide_user_inputs();
     tuim::ctx = new tuim::context();
 }
 
 void tuim::delete_context() {
     set_cursor_visible(true);
     printf("\033[?1049l"); // disabled alternate buffer
+    tuim::show_user_inputs();
     delete tuim::ctx;
 }
 
@@ -485,6 +489,32 @@ void tuim::print(const char* fmt, Args ... args) {
     vec2 pos = get_container().cursor;
     pos.x += width;
     move_container_cursor(pos);
+}
+
+void tuim::show_user_inputs() {
+    #ifdef __linux__ 
+        termios term;
+        tcgetattr(0, &term);
+        term.c_lflag |= ECHO;
+        tcsetattr(0, TCSANOW, &term);
+    #elif _WIN32
+        
+    #else
+
+    #endif
+}
+
+void tuim::hide_user_inputs() {
+#ifdef __linux__ 
+        termios term;
+        tcgetattr(0, &term);
+        term.c_lflag &= ~ECHO;
+        tcsetattr(0, TCSANOW, &term);
+    #elif _WIN32
+        
+    #else
+
+    #endif
 }
 
 tuim::context* tuim::get_context() {
@@ -858,7 +888,9 @@ bool tuim::slider(const std::string& id, T* value, T min, T max, T step) {
     }
     if(tuim::is_item_hovered() && tuim::is_pressed(keyboard::ENTER)) {
         tuim::print("&r ");
+        tuim::show_user_inputs();
         std::cin >> *value;
+        tuim::hide_user_inputs();
     }
     tuim::print("&r %s", std::to_string(*value).c_str());
 
@@ -873,7 +905,9 @@ bool tuim::input_number(const std::string& id, const std::string& text, T* value
     if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::ENTER)) {
             tuim::print("[*] ");
+            tuim::show_user_inputs();
             std::cin >> *value;
+            tuim::hide_user_inputs();
             tuim::set_active_id(item.id);
         }
         else if(tuim::is_pressed(keyboard::LEFT)) {
@@ -1217,14 +1251,16 @@ tuim::keyboard::keycode tuim::keyboard::get_pressed() {
             termios term;
             fflush(stdout);
             tcgetattr(0, &term);
-            term.c_lflag &= ~(ICANON | ECHO);
+            // term.c_lflag &= ~(ICANON | ECHO);
+            term.c_lflag &= ~ICANON;
             term.c_cc[VMIN] = 1;
             term.c_cc[VTIME] = 0;
             tcsetattr(0, TCSANOW, &term);
 
             read(0, &buf, 1);
 
-            term.c_lflag |= ICANON | ECHO;
+            // term.c_lflag |= ICANON | ECHO;
+            term.c_lflag |= ICANON;
             tcsetattr(0, TCSADRAIN, &term);
 
             codes[count] = (unsigned char) buf;
@@ -1247,14 +1283,16 @@ bool tuim::keyboard::is_pressed() {
     #ifdef __linux__ 
         termios term;
         tcgetattr(0, &term);
-        term.c_lflag &= ~(ICANON | ECHO);
+        // term.c_lflag &= ~(ICANON | ECHO);
+        term.c_lflag &= ~ICANON;
         tcsetattr(0, TCSANOW, &term);
 
         int byteswaiting;
         ioctl(0, FIONREAD, &byteswaiting);
 
         tcgetattr(0, &term);
-        term.c_lflag |= ICANON | ECHO;
+        // term.c_lflag |= ICANON | ECHO;
+        term.c_lflag |= ICANON;
         tcsetattr(0, TCSANOW, &term);
 
         return byteswaiting > 0;
