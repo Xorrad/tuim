@@ -23,6 +23,7 @@
 #include <sstream>
 #include <regex>
 #include <math.h>
+#include <chrono>
 
 #ifdef __linux__
 #include <unistd.h>
@@ -330,6 +331,7 @@ namespace tuim {
     bool input_bool(const std::string& id, const std::string& text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); /* Display a input for booleans */
     bool input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags = INPUT_TEXT_FLAGS_NONE); /* Display a input for string */
     bool checkbox(const std::string& id, const std::string& text, bool* value);
+    void animation(const std::string& id, int* current, float speed, const std::vector<std::string>& frames);
     void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
 
     void push_margin(uint32_t margin);
@@ -1020,6 +1022,25 @@ bool tuim::checkbox(const std::string& id, const std::string& text, bool* value)
     tuim::print(text.c_str(), (*value ? "✔" : "✗"));
 
     return tuim::is_item_active();
+}
+
+void tuim::animation(const std::string& id, int* current, float speed, const std::vector<std::string>& frames) {
+    static std::map<tuim::item_id, uint64_t> timestamps;
+    
+    tuim::item_id item_id = tuim::str_to_id(id);
+    tuim::item item = tuim::item{ item_id, tuim::item_flags_::ITEM_FLAGS_DISABLED };
+    tuim::add_item(item);
+
+    uint64_t current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+    ).count();
+
+    if(timestamps.count(item_id) == 0 || current_time - timestamps.at(item_id) >= speed * 1000) {
+        timestamps[item_id] = current_time;
+        (*current) = (*current == (int) frames.size()-1) ? 0 : *current + 1;
+    }
+
+    tuim::print(frames.at(*current).c_str());
 }
 
 void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding) {
