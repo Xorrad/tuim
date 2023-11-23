@@ -452,9 +452,10 @@ void tuim::print_to_screen(std::string str) {
             ctx->cursor = { (int) get_active_margin(), ctx->cursor.y+1};
             if(ctx->cursor.x > 1) {
                 std::string margin = "\033[" + std::to_string(ctx->cursor.x) + "G";
-                str = str.substr(0, i) + margin + str.substr(i, str.length());
+                str = str.substr(0, i+1) + margin + str.substr(i+1, str.length());
                 i += margin.length();
-                // printf("margin: %d", ctx->cursor.x);
+
+                // printf("margin: %d %d%stest", ctx->cursor.x, i, margin.c_str());
                 // printf("\033[%dG", ctx->cursor.x);
             }
         }
@@ -805,7 +806,7 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
             }
 
             cursor = get_cursor();
-            cursor = {margin, cursor.y+1 - (is_eol && line_break)};
+            cursor = {margin, cursor.y+1};
             tuim::gotoxy(cursor);
 
             line = "";
@@ -1183,6 +1184,9 @@ void tuim::pop_margin() {
     context* ctx = get_context();
     if(ctx->margins_stack.size() > 0)
         ctx->margins_stack.pop_back();
+
+    ctx->cursor.x = get_active_margin();
+    printf("\033[%dG", ctx->cursor.x);
 }
 
 uint32_t tuim::get_active_margin() {
