@@ -199,6 +199,7 @@ namespace tuim {
         INPUT_TEXT_FLAGS_NONE = 0,
         INPUT_TEXT_FLAGS_NUMERIC_ONLY = 1 << 0,
         INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY = 1 << 1,
+        INPUT_TEXT_ALLOW_LINE_BREAKS = 1 << 2,
     };
 
     struct printing_info {
@@ -967,7 +968,7 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
             if(cursor > 0) {
                 do {
                     cursor--;
-                } while(cursor > 0 && (0b00000011 & (value->at(cursor) >> 6)) == 0b10);
+                } while(cursor > 0 && ((0b00000011 & (value->at(cursor) >> 6)) == 0b10));
             }
         }
         else if(tuim::is_pressed(keyboard::RIGHT)) {
@@ -995,7 +996,7 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
             if(tuim::string::is_printable(code)) {
                 if((flags & INPUT_TEXT_FLAGS_NUMERIC_ONLY && isdigit(code))
                 || (flags & INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY && tuim::string::is_alphanumeric(code))
-                || (flags == INPUT_TEXT_FLAGS_NONE)) {
+                || !(flags & (INPUT_TEXT_FLAGS_NUMERIC_ONLY | INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY))) {
                     std::string str = tuim::string::int_to_utf8(code);
                     for(size_t i = 0; i < str.length(); i++)
                         (*value).insert(value->begin() + cursor + i, str[i]);
@@ -1007,7 +1008,15 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
 
     if(tuim::is_item_hovered()) {
         if(tuim::is_pressed(keyboard::ENTER)) {
-            if(tuim::is_item_active()) tuim::set_active_id(0);
+            if(tuim::is_item_active()) {
+                if(flags & INPUT_TEXT_ALLOW_LINE_BREAKS) {
+                    (*value).insert(value->begin() + cursor, '\n');
+                    cursor++;
+                }
+                else {
+                    tuim::set_active_id(0);
+                }
+            }
             else {
                 tuim::set_active_id(item.id);
                 cursor = value->length();
@@ -1017,6 +1026,8 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
         else tuim::print("[x] ");
     }
     else tuim::print("[ ] ");
+
+    tuim::push_margin(tuim::get_cursor().x);
 
     tuim::print("#_555555");
     size_t i = 0;
@@ -1028,6 +1039,7 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
             ch = "\\" + ch;
 
         if(tuim::is_item_active() && !tuim::keyboard::is_pressed() && cursor == i) {
+            if(ch == "\n") ch = " \n";
             tuim::print("#_ffffff#555555%s&r#_555555", ch.c_str());
         }
         else tuim::print("%s", ch.c_str());
@@ -1036,6 +1048,8 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
     }
     if(tuim::is_item_active() && !tuim::keyboard::is_pressed() && cursor == i) tuim::print("#_ffffff ");
     tuim::print("&r");
+
+    tuim::pop_margin();
 
     return tuim::is_item_active();
 }

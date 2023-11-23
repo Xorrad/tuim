@@ -28,6 +28,7 @@ int main(int argc, char* argv[])
     int value1 = 50;
     float value2 = 0.5f;
     std::string value3 = "tuim";
+    std::string value6 = "hello\nworld";
     weapon value4 = NONE;
     bool value5 = false;
 
@@ -47,6 +48,7 @@ int main(int argc, char* argv[])
         tuim::print("value1: %d\n", value1);
         tuim::print("value2: %f\n", value2);
         tuim::print("value3: %s&r\n", value3.c_str());
+        tuim::print("value6: %s&r\n", value6.c_str());
         tuim::print("value4: %d %s\n", value4, weapon_labels.at(value4).c_str());
         tuim::print("value5: %d\n\n", value5);
         if(key != 0) last_key = key;
@@ -60,6 +62,8 @@ int main(int argc, char* argv[])
         tuim::input_number<int>("#i1", "< %d >", &value1, 0, 100, 1);
         tuim::new_line();
         tuim::input_text("#i2", &value3, "", tuim::INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY);
+        tuim::new_line();
+        tuim::input_text("#i6", &value6, "", tuim::INPUT_TEXT_ALLOW_LINE_BREAKS);
         tuim::new_line();
         tuim::input_enum<weapon>("#i3", "< %s >", &value4, NUM_WEAPONS, weapon_labels);
         tuim::new_line();
