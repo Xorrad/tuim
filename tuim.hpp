@@ -962,6 +962,7 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
 
+
     static size_t cursor = value->length();
 
     if(tuim::is_item_active()) {
@@ -989,6 +990,78 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
                     cursor--;
                 } while(cursor > 0 && (0b00000011 & (value->at(cursor) >> 6)) == 0b10);
                 *value = value->erase(cursor, l);
+            }
+        }
+        else if(tuim::is_pressed(keyboard::UP)) {
+            if(flags & INPUT_TEXT_ALLOW_LINE_BREAKS) {
+                if(cursor > 0) {
+                    size_t line_pos = 0;
+                    size_t prev_line_len = 0;
+
+                    // Move cursor until end of last line.
+                    // Count position in initial line.
+                    while(cursor > 0) {
+                        if(line_pos > 0 && value->at(cursor) == '\n') break;
+                        do {
+                            line_pos++;
+                            cursor--;
+                        } while(cursor > 0 && ((0b00000011 & (value->at(cursor) >> 6)) == 0b10));
+                    }
+
+                    // Move cursor until end of last line.
+                    // Count line length.
+                    while(cursor > 0) {
+                        if(prev_line_len > 0 && value->at(cursor) == '\n') break;
+                        do {
+                            prev_line_len++;
+                            cursor--;
+                        } while(cursor > 0 && ((0b00000011 & (value->at(cursor) >> 6)) == 0b10));
+                    }
+
+                    // If it is the beginning of the text, we have to move one char less,
+                    // because the cursor is not at end of last line, but start of current line.
+                    if(cursor == 0 && value->at(cursor) != '\n') line_pos--;
+                    cursor += std::min(line_pos, prev_line_len);
+                }
+            }
+        }
+        else if(tuim::is_pressed(keyboard::DOWN)) {
+            if(flags & INPUT_TEXT_ALLOW_LINE_BREAKS) {
+                if(cursor < value->length()) {
+                    size_t line_pos = 0;
+                    size_t next_line_len = 0;
+                    int tmp_cursor = cursor;
+
+                    // Count position in initial line.
+                    while(tmp_cursor > 0) {
+                        if(line_pos > 0 && value->at(tmp_cursor) == '\n') break;
+                        do {
+                            line_pos++;
+                            tmp_cursor--;
+                        } while(tmp_cursor > 0 && ((0b00000011 & (value->at(tmp_cursor) >> 6)) == 0b10));
+                    }
+                    if(tmp_cursor == 0 && value->at(cursor) != '\n') line_pos--;
+
+                    // Advance cursor until line break.
+                    while(cursor < value->length()) {
+                        if(value->at(cursor) == '\n') {
+                            cursor++;
+                            break;
+                        }
+                        cursor += tuim::string::char_length(value->at(cursor));
+                    }
+
+                    // Count next line length
+                    tmp_cursor = cursor;
+                    while(tmp_cursor < value->length()) {
+                        size_t ch_len = tuim::string::char_length(value->at(tmp_cursor));
+                        next_line_len += ch_len;
+                        if(value->at(tmp_cursor) == '\n') break;
+                        tmp_cursor += ch_len;
+                    }
+
+                    cursor += std::min(line_pos, next_line_len);
+                }
             }
         }
         else if(tuim::is_pressed(keyboard::ESCAPE)) tuim::set_active_id(0);
