@@ -1034,13 +1034,12 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
 
                     // Count position in initial line.
                     while(tmp_cursor > 0) {
-                        if(line_pos > 0 && value->at(tmp_cursor) == '\n') break;
+                        if(value->at(tmp_cursor-1) == '\n') break;
                         do {
                             line_pos++;
                             tmp_cursor--;
                         } while(tmp_cursor > 0 && ((0b00000011 & (value->at(tmp_cursor) >> 6)) == 0b10));
                     }
-                    if(tmp_cursor == 0 && value->at(cursor) != '\n') line_pos--;
 
                     // Advance cursor until line break.
                     while(cursor < value->length()) {
@@ -1054,9 +1053,9 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
                     // Count next line length
                     tmp_cursor = cursor;
                     while(tmp_cursor < value->length()) {
+                        if(value->at(tmp_cursor) == '\n') break;
                         size_t ch_len = tuim::string::char_length(value->at(tmp_cursor));
                         next_line_len += ch_len;
-                        if(value->at(tmp_cursor) == '\n') break;
                         tmp_cursor += ch_len;
                     }
 
