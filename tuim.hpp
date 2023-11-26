@@ -12,6 +12,10 @@
 #ifndef TUIM_CPP
 #define TUIM_CPP
 
+/***********************************************************
+*                         HEADERS                          *
+***********************************************************/
+
 #include <iostream>
 #include <string>
 #include <string.h>
@@ -35,6 +39,10 @@
 
 #endif
 
+/***********************************************************
+*                    MACROS/DEFINES                        *
+***********************************************************/
+
 #define TUIM_STYLE_CODE '&'
 #define TUIM_COLOR_BACKGROUND '_'
 #define TUIM_COLOR_CUSTOM '#'
@@ -45,20 +53,36 @@
 
 namespace tuim {
 
-    /* Forward declarations for ui */
-    typedef uint32_t item_id;
+    /***********************************************************
+    *                  FORWARD DECLARATIONS                    *
+    ***********************************************************/
 
+    // Types
+    typedef uint32_t item_id;
     typedef uint32_t item_flags;
     typedef uint32_t text_flags;
     typedef uint32_t button_flags;
     typedef uint32_t input_text_flags;
+    namespace keyboard {
+        typedef uint32_t keycode;
+    };
 
-    /* User Interface related structures */
+    // Structures
     struct context;
     struct container;
     struct item;
+    struct vec2;
+    namespace color {
+        struct color;
+    };
+    namespace font {
+        struct style;
+    };
 
-    /* Math related structures */
+    /***********************************************************
+    *                    MATH UTILITIES                        *
+    ***********************************************************/
+
     struct vec2 {
         int x, y;
 
@@ -70,11 +94,11 @@ namespace tuim {
         }
     };
 
-    /* Keyboard related functions are defined here */
+    /***********************************************************
+    *                  KEYBOARD UTILITIES                      *
+    ***********************************************************/
+
     namespace keyboard {
-
-        typedef uint32_t keycode;
-
         enum key {
             NONE = 0,
             ENTER = 10,
@@ -125,16 +149,18 @@ namespace tuim {
             Y = 121,
             Z = 122,
             BACKSPACE = 127
-            /* To complete */
+            // To complete
         };
-
-        keycode get_pressed(); /* Get pressed key */
-        bool is_pressed(); /* Check if key has been pressed */
+        keycode get_pressed(); // Get pressed key as unsigned int
+        bool is_pressed(); // Check if a key has been pressed
     }
 
-    namespace color {
+    /***********************************************************
+    *                        COLORS                            *
+    ***********************************************************/
 
-        /* Structure to store rgb color codes */
+    namespace color {
+        // Structure to store rgb color codes
         struct color {
             int r;
             int g;
@@ -142,15 +168,18 @@ namespace tuim {
             bool background;
         };
 
-        color from_code(std::string str); /* Convert string color code to rgb */
-        color from_hex(std::string str); /* Convert string hexadecimal color code to rgb */
-        color from_hex(unsigned int hex); /* Convert hexadecimal color code to rgb */
-        unsigned int to_hex(color color); /* Convert rgb color code to hexadecimal*/
-        std::string to_ansi(color color); /* Convert rgb color to ansi color */
+        color from_code(std::string str); // Convert string color code to rgb
+        color from_hex(std::string str);  // Convert string hexadecimal color code to rgb
+        color from_hex(unsigned int hex); // Convert hexadecimal color code to rgb
+        unsigned int to_hex(color color); // Convert rgb color code to hexadecimal
+        std::string to_ansi(color color); // Convert rgb color to ansi color
     }
 
+    /***********************************************************
+    *                    FONT & TEXT TAGS                      *
+    ***********************************************************/
+
     namespace font {
-        
         enum class mode {
             RESET = 0,
             BOLD = 1,
@@ -176,15 +205,17 @@ namespace tuim {
             };
         };
 
-        void register_style(const std::string &code, const style &style);
-
-        mode from_code(const std::string &str);
-        std::string to_ansi(mode mode, bool enabled);
-        style make_style(color::color color);
-        style make_style(mode mode);
+        void register_style(const std::string &code, const style &style); // Bind a new character to a style
+        mode from_code(const std::string &str); // Get the mode bound to a string
+        std::string to_ansi(mode mode, bool enabled); // Get the ANSI Escape Sequence of a mode
+        style make_style(color::color color); // Create a style var from a color
+        style make_style(mode mode); // Create a style var from a mode
     }
 
-    /* User interface components are defined here */
+    /***********************************************************
+    *                         FLAGS                            *
+    ***********************************************************/
+
     enum item_flags_ {
         ITEM_FLAGS_NONE = 0,
         ITEM_FLAGS_DISABLED = 1 << 0,
@@ -202,6 +233,11 @@ namespace tuim {
         INPUT_TEXT_ALLOW_LINE_BREAKS = 1 << 2,
     };
 
+    /***********************************************************
+    *                    UI STRUCTURES                         *
+    ***********************************************************/
+
+    // This structure is not really used yet
     struct printing_info {
         vec2 pos;
         uint32_t size;
@@ -222,30 +258,30 @@ namespace tuim {
     };
 
     struct context {
-        item_id active_id;
-        item_id last_active_id;
-        item_id hovered_id;
+        item_id active_id; // Id of active item during current frame
+        item_id last_active_id; // Id of active item during last frame
+        item_id hovered_id; // Id of hovered item during current frame
 
-        vec2 cursor;
-        bool cursor_visible;
+        vec2 cursor; // Current position of the cursor
+        bool cursor_visible; // Is the terminal (blinking) cursor enabled
 
-        keyboard::keycode pressed_key;
+        keyboard::keycode pressed_key; // Value of pressed key during frame
 
-        std::map<std::string, font::style> style_codes;
-        std::map<font::mode, bool> style_modes;
+        std::map<std::string, font::style> style_codes; // Dictionary of registered styles
+        std::map<font::mode, bool> style_modes; // Dictionary of active modes (BOLD, ITALIC...)
 
-        std::vector<item> items_stack;
-        std::vector<container> containers_stack;
-        std::vector<uint32_t> margins_stack;
+        std::vector<item> items_stack; // Items during last frame (?)
+        std::vector<container> containers_stack; // Containers during current frame
+        std::vector<uint32_t> margins_stack; // Current margins
 
-        std::vector<printing_info> printings_stack; /* Store what has been drawn by the last item */
+        std::vector<printing_info> printings_stack; // Store what has been drawn by the last item (not used)
 
         context() {
             active_id = 0;
             last_active_id = 0;
             hovered_id = 0;
 
-            cursor = {1, 1};
+            cursor = {1, 1}; // For whatever reasons, (0,0) and (1,1) seems to be the same pos
             cursor_visible = true;
 
             pressed_key = tuim::keyboard::NONE;
@@ -273,110 +309,148 @@ namespace tuim {
         ~context() {}
     };
 
-    context* ctx; /* Global context variable for the gui */
+    /***********************************************************
+    *                    GLOBAL VARIABLES                      *
+    ***********************************************************/
 
-    void init(int argc, char* argv[]); /* Initialize tuim with command line arguments */
-    void create_context(); /* Create the global gui context */
-    void delete_context(); /* Delete the global gui context */
+    context* ctx; // Global context variable for the gui
 
-    void set_cursor_visible(bool cursor); /* Set the terminal cursor visible */
-    bool is_cursor_visible(); /* Get the cursor visibility */
-    void set_title(std::string title); /* Set terminal title */
-    void set_cursor(vec2 pos); /* Change terminal cursor position */
-    vec2 get_cursor(); /* Get terminal cursor position */
-    void gotoxy(vec2 pos);
-    void new_line(); /* Break to a new line */
-    void clear(); /* Clear terminal output */
-    void clear_line(); /* Clear terminal output */
-    void print_to_screen(std::string str); /* Print text to screen and reset style */
-    template<typename ... Args> void print(const char* fmt, Args ... args); /* Format text for printing to screen */
-    void show_user_inputs();
-    void hide_user_inputs();
+    /***********************************************************
+    *                    WINDOW FUNCTIONS                      *
+    ***********************************************************/
 
-    context* get_context(); /* Get tuim user interface global context */
+    void init(int argc, char* argv[]); // Initialize tuim with command line arguments
+    void create_context(); // Create the global gui context
+    void delete_context(); // Delete the global gui context
+    context* get_context(); // Get tuim user interface global context
 
-    item_id str_to_id(const std::string &str); /* Hash a string to get an item id */
-    item_id get_id(); /* Get the id of the current item*/
-    uint32_t get_index(tuim::item_id id); /* Get the index of a specific item */
-    uint32_t get_hovered_index(); /* Get the index of the hovered item */
+    void set_title(std::string title); // Set terminal title
 
-    bool was_item_active(); /* Return true if the last pushed item was active on previous tick */
-    bool is_item_active(); /* Determine if last pushed item is active */
-    bool is_item_hovered(); /* Determine if last pushed item is hovered */
-    bool is_pressed(tuim::keyboard::key key); /* Determine if a specified key has been pressed */
-    bool is_pressed(tuim::keyboard::keycode code); /* Determine if a specified keycode has been pressed */
-    bool is_pressed(const char* c); /* Determine if a specified character has been pressed */
-    bool has_hoverable(); /* Determine if an hoverable item has been pushed */
+    void set_cursor(vec2 pos); // Change tuim global cursor
+    vec2 get_cursor(); // Get terminal cursor position
+    void gotoxy(vec2 pos); // Move cursor
+    void set_cursor_visible(bool cursor); // Set the terminal cursor visible
+    bool is_cursor_visible(); // Get the cursor visibility
+    
+    void show_user_inputs(); // Enable displaying of user inputs
+    void hide_user_inputs(); // Hide user inputs
 
-    void set_active_id(item_id id); /* Set an item as active */
-    void set_hovered_id(item_id id); /* Set an item as hovered */
+    void new_line(); // Break to a new line
+    void clear(); // Clear terminal output
+    void clear_line(); // Clear terminal output
+    void print_to_screen(std::string str); // Print text to screen and reset style
+    template<typename ... Args> void print(const char* fmt, Args ... args); // Format text for printing to screen
+    void update(tuim::keyboard::keycode key); // Update the items
+    void display(); // Display pushed items (no used)
 
-    void add_item(item item); /* Push a new item */
-    void remove_item(item_id id); /* Remove an item */
+    /***********************************************************
+    *                     ITEMS FUNCTIONS                      *
+    ***********************************************************/
 
-    void update(tuim::keyboard::keycode key); /* Update the items */
-    void display(); /* Display pushed items */
+    item_id str_to_id(const std::string &str); // Hash a string to get an item id
+    item_id get_id(); // Get the id of the current item
+    uint32_t get_index(tuim::item_id id); // Get the index of a specific item
+    uint32_t get_hovered_index(); // Get the index of the hovered item
 
-    int calc_text_width(const std::string &str, int padding = 0); /* Compute a text width with padding*/
-    int calc_text_vector_width(const std::vector<std::string> &str, int padding = 0); /* Compute the max width of strings in a vector */
-    std::vector<int> calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding = 0); /* Compute the max width for each columns */
+    bool was_item_active(); // Return true if the last pushed item was active on previous tick
+    bool is_item_active(); // Determine if last pushed item is active
+    bool is_item_hovered(); // Determine if last pushed item is hovered
+    bool is_pressed(tuim::keyboard::key key); // Determine if a specified key has been pressed
+    bool is_pressed(tuim::keyboard::keycode code); // Determine if a specified keycode has been pressed
+    bool is_pressed(const char* c); // Determine if a specified character has been pressed
+    bool has_hoverable(); // Determine if an hoverable item has been pushed
 
-    vec2 calc_relative_position(); /* Calculate the coordinates from which to start drawing an item. */
+    void set_active_id(item_id id); // Set an item as active
+    void set_hovered_id(item_id id); // Set an item as hovered
 
-    void text(const std::string& id, const std::string& text); /* Display text */
-    void text(const std::string& text); /* Display text */
-    void hr(int length);
-    void paragraph(const std::string& id, const std::string& text, unsigned int width);
-    bool button(const std::string& id, const std::string& text, button_flags flags = BUTTON_FLAGS_NONE); /* Display a button */
-    template <typename T> bool slider(const std::string& id, T* value, T min, T max, T step); /* Display a number slider */
-    template <typename T> bool input_number(const std::string& id, const std::string& text, T* value, T min, T max, T step); /* Display a input for numbers */
-    template <typename U> bool input_enum(const std::string& id, const std::string& text, U* value, int max, const std::map<U, std::string>& labels); /* Display a input for enums */
-    bool input_bool(const std::string& id, const std::string& text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); /* Display a input for booleans */
-    bool input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags = INPUT_TEXT_FLAGS_NONE); /* Display a input for string */
-    bool checkbox(const std::string& id, const std::string& text, bool* value);
-    void animation(const std::string& id, int* current, float speed, const std::vector<std::string>& frames);
-    void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); /* Display a navigable table */
+    void add_item(item item); // Push a new item
+    void remove_item(item_id id); // Remove an item
 
-    void push_margin(uint32_t margin);
-    void pop_margin();
-    uint32_t get_active_margin();
+    int calc_text_width(const std::string &str, int padding = 0); // Compute a text width with padding
+    int calc_text_vector_width(const std::vector<std::string> &str, int padding = 0); // Compute the max width of strings in a vector
+    std::vector<int> calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding = 0); // Compute the max width for each columns
+
+    vec2 calc_relative_position(); // Calculate the coordinates from which to start drawing an item
+
+    /***********************************************************
+    *                    COMPONENTS/ITEMS                      *
+    ***********************************************************/
+
+    void text(const std::string& id, const std::string& text); // Display text
+    void text(const std::string& text); // Display text
+    void hr(int length); // Display horizontal bar
+    void paragraph(const std::string& id, const std::string& text, unsigned int width); // Display paragraph with automatic line breaks and word spacing
+    bool button(const std::string& id, const std::string& text, button_flags flags = BUTTON_FLAGS_NONE); // Display a button
+    template <typename T> bool slider(const std::string& id, T* value, T min, T max, T step); // Display a number slider
+    template <typename T> bool input_number(const std::string& id, const std::string& text, T* value, T min, T max, T step); // Display a input for numbers
+    template <typename U> bool input_enum(const std::string& id, const std::string& text, U* value, int max, const std::map<U, std::string>& labels); // Display a input for enums
+    bool input_bool(const std::string& id, const std::string& text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); // Display a input for booleans
+    bool input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags = INPUT_TEXT_FLAGS_NONE); // Display a input for string
+    bool checkbox(const std::string& id, const std::string& text, bool* value); // Display checkbox
+    void animation(const std::string& id, int* current, float speed, const std::vector<std::string>& frames); // Display animated frames
+    void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); // Display a navigable table
+
+    /***********************************************************
+    *                    STYLE FUNCTIONS                       *
+    ***********************************************************/
+
+    void push_margin(uint32_t margin); // Push a new horizontal margin
+    void pop_margin(); // Pop current horizontal margin
+    uint32_t get_active_margin(); // Get current horizontal margin
+
+    /***********************************************************
+    *                   CONTAINERS FUNCTIONS                   *
+    ***********************************************************/
 
     container& get_container();
+    void update_container();
+    void move_container_cursor(vec2 pos);
+    
     void start_container();
     void end_container();
-    void update_container();
 
     void start_column();
     void end_column();
 
-    void move_container_cursor(vec2 pos);
+    /***********************************************************
+    *                   INTERNAL FUNCTIONS                     *
+    ***********************************************************/
 
-    /* Internals are defined within this namespace */
     namespace impl {
-        void open_terminal(); /* Restart program in a separate terminal */
-        void add_printing_info(const std::string &str); /* Log a printing into the stack */
+        void open_terminal(); // Restart program in a separate terminal
+        void add_printing_info(const std::string &str); // Log a printing into the stack
     }
 
+    /***********************************************************
+    *                    STRING FUNCTIONS                      *
+    ***********************************************************/
+
     namespace string {
-        size_t length(const std::string& str);
-        std::string fill(const std::string& str, size_t length);
-        std::string parse_styles(const std::string& str); /* Replace style codes with ansi escape sequences */
-        std::string escape_styles(const std::string& str);
-        uint32_t utf8_to_int(const std::string& c);
-        std::string int_to_utf8(uint32_t code);
-        bool is_printable(uint32_t code);
-        size_t char_length(char c);
-        uint32_t to_lowercase(uint32_t code);
-        bool is_alphanumeric(uint32_t code);
-        bool is_vowel(uint32_t code);
+        size_t length(const std::string& str); // Get number of characters in string
+        std::string fill(const std::string& str, size_t length); // Get a duplicate of a string
+        std::string parse_styles(const std::string& str); // Replace style codes with ansi escape sequences
+        std::string escape_styles(const std::string& str); // Escape style tags in string
+        uint32_t utf8_to_int(const std::string& c); // Get the codepoint of a utf8 character (as string)
+        std::string int_to_utf8(uint32_t code); // Convert a utf8 codepoint to a string
+        bool is_printable(uint32_t code); // Check if a utf8 character is printable
+        size_t char_length(char c); // Get length (in bytes) of a utf8 character
+        uint32_t to_lowercase(uint32_t code); // Get lowercase of utf8 chararcter
+        bool is_alphanumeric(uint32_t code); // Check if utf8 character is a letter or number
+        bool is_vowel(uint32_t code); // Check if utf8 character is a vowel
     }
 
 }
 
-/* Inline functions definitions */
+/***********************************************************
+*                   INLINE DEFINITIONS                     *
+***********************************************************/
+
+/***********************************************************
+*                    WINDOW FUNCTIONS                      *
+***********************************************************/
 
 void tuim::init(int argc, char* argv[]) {
-    /* Restart if not in separate terminal */
+    // Restart if not in separate terminal
     if(argc < 2 || strcmp(argv[1], "f") != 0) {
         //tuim::impl::open_terminal();
     }
@@ -397,19 +471,13 @@ void tuim::delete_context() {
     delete tuim::ctx;
 }
 
-void tuim::set_cursor_visible(bool cursor) {
-    context* ctx = get_context();
-    ctx->cursor_visible = cursor;
-    printf("\033[?25%c", (cursor ? 'h' : 'l'));
-}
-
-bool tuim::is_cursor_visible() {
-    context* ctx = get_context();
-    return ctx->cursor_visible;
+tuim::context* tuim::get_context() {
+    // TODO -> add assert for ctx 0
+    return tuim::ctx;
 }
 
 void tuim::set_title(std::string title) {
-    /* http://www.faqs.org/docs/Linux-mini/Xterm-Title.html#s3 */
+    // http://www.faqs.org/docs/Linux-mini/Xterm-Title.html#s3
     printf("\033]0;%s\007", title.c_str());
 }
 
@@ -428,6 +496,43 @@ void tuim::gotoxy(vec2 pos) {
     tuim::set_cursor(pos);
 }
 
+void tuim::set_cursor_visible(bool cursor) {
+    context* ctx = get_context();
+    ctx->cursor_visible = cursor;
+    printf("\033[?25%c", (cursor ? 'h' : 'l'));
+}
+
+bool tuim::is_cursor_visible() {
+    context* ctx = get_context();
+    return ctx->cursor_visible;
+}
+
+void tuim::show_user_inputs() {
+    #ifdef __linux__ 
+        termios term;
+        tcgetattr(0, &term);
+        term.c_lflag |= ECHO;
+        tcsetattr(0, TCSANOW, &term);
+    #elif _WIN32
+        
+    #else
+
+    #endif
+}
+
+void tuim::hide_user_inputs() {
+#ifdef __linux__ 
+        termios term;
+        tcgetattr(0, &term);
+        term.c_lflag &= ~ECHO;
+        tcsetattr(0, TCSANOW, &term);
+    #elif _WIN32
+        
+    #else
+
+    #endif
+}
+
 void tuim::new_line() {
     print_to_screen("\n");
 }
@@ -435,6 +540,7 @@ void tuim::new_line() {
 void tuim::clear() {
     printf("\033[0m\033[2J\033[3J\033[H");
     ctx->style_modes.clear();
+    ctx->margins_stack.clear();
     ctx->pressed_key = tuim::keyboard::NONE;
     set_cursor({1, 1});
 }
@@ -484,7 +590,7 @@ void tuim::print(const char* fmt, Args ... args) {
     std::string parsed = std::string( buf.get(), buf.get() + size - 1);
     parsed = tuim::string::parse_styles(parsed);
 
-    /* Print formatted text */
+    // Print formatted text
     print_to_screen(parsed);
 
     int width = calc_text_width(parsed);
@@ -493,39 +599,13 @@ void tuim::print(const char* fmt, Args ... args) {
     move_container_cursor(pos);
 }
 
-void tuim::show_user_inputs() {
-    #ifdef __linux__ 
-        termios term;
-        tcgetattr(0, &term);
-        term.c_lflag |= ECHO;
-        tcsetattr(0, TCSANOW, &term);
-    #elif _WIN32
-        
-    #else
 
-    #endif
-}
-
-void tuim::hide_user_inputs() {
-#ifdef __linux__ 
-        termios term;
-        tcgetattr(0, &term);
-        term.c_lflag &= ~ECHO;
-        tcsetattr(0, TCSANOW, &term);
-    #elif _WIN32
-        
-    #else
-
-    #endif
-}
-
-tuim::context* tuim::get_context() {
-    /* TODO -> add assert for ctx 0*/
-    return tuim::ctx;
-}
+/***********************************************************
+*                     ITEMS FUNCTIONS                      *
+***********************************************************/
 
 tuim::item_id tuim::str_to_id(const std::string &str) {
-    /* http://www.cse.yorku.ca/~oz/hash.html */
+    // http://www.cse.yorku.ca/~oz/hash.html
     unsigned long hash = 5381;
     for (size_t i = 0; i < str.size(); ++i)
         hash = 33 * hash + (unsigned char) str[i];
@@ -624,11 +704,11 @@ void tuim::update(tuim::keyboard::keycode key) {
 
         int hovered_index = tuim::get_hovered_index();
 
-        /*std::cerr << "has hoverable: " << tuim::has_hoverable() << std::endl;
-        std::cerr << "index: " << hovered_index << std::endl;
-        std::cerr << "hovered: " << ctx->hovered_id << std::endl;*/
+        // std::cerr << "has hoverable: " << tuim::has_hoverable() << std::endl;
+        // std::cerr << "index: " << hovered_index << std::endl;
+        // std::cerr << "hovered: " << ctx->hovered_id << std::endl;
 
-        /* Set the first hoverable item hovered if no item is */
+        // Set the first hoverable item hovered if no item is
         if(hovered_index == -1 && tuim::has_hoverable()) {
             for(size_t i = 0; i < ctx->items_stack.size(); i++) {
                 if(!(ctx->items_stack.at(i).flags & tuim::item_flags_::ITEM_FLAGS_DISABLED)) {
@@ -639,8 +719,7 @@ void tuim::update(tuim::keyboard::keycode key) {
             }
         }
 
-        /* Move cursor to previous hoverable item */
-        // if(key == tuim::keyboard::UP) {
+        // Move cursor to previous hoverable item
         if(key == keyboard::UP) {
             if(tuim::has_hoverable()) {
                 tuim::item_id id = 0;
@@ -654,8 +733,7 @@ void tuim::update(tuim::keyboard::keycode key) {
             }
         }
 
-        /* Move cursor to next hoverable item */
-        // if(key == tuim::keyboard::DOWN) {
+        // Move cursor to next hoverable item
         if(key == keyboard::DOWN) {
             if(tuim::has_hoverable()) {
                 tuim::item_id id = 0;
@@ -678,7 +756,6 @@ void tuim::display() {
 }
 
 int tuim::calc_text_width(const std::string &str, int padding) {
-
     // https://github.com/chalk/ansi-regex/blob/main/index.js
     static const std::string pattern = "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))";
     static const std::regex regex(pattern);
@@ -718,6 +795,10 @@ tuim::vec2 tuim::calc_relative_position() {
 
     return pos;
 }
+
+/***********************************************************
+*                    COMPONENTS/ITEMS                      *
+***********************************************************/
 
 void tuim::text(const std::string& id, const std::string& text) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_DISABLED };
@@ -1198,7 +1279,7 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
     }
     else tuim::print("[ ]\n");
 
-    /* Calculate the max width for each columns */
+    // Calculate the max width for each columns
     std::vector<int> columns_width = tuim::calc_columns_width(columns, rows, padding);
 
     auto print_table_border = [&](const char *c1, const char *c2, const char *c3) {
@@ -1247,6 +1328,10 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
     print_table_border(u8"└", u8"┴", u8"┘");
 }
 
+/***********************************************************
+*                    STYLE FUNCTIONS                       *
+***********************************************************/
+
 void tuim::push_margin(uint32_t margin) {
     context* ctx = get_context();
     ctx->margins_stack.push_back(margin);
@@ -1268,9 +1353,26 @@ uint32_t tuim::get_active_margin() {
     return ctx->margins_stack.back();
 }
 
+/***********************************************************
+*                   CONTAINERS FUNCTIONS                   *
+***********************************************************/
+
 tuim::container& tuim::get_container() {
     tuim::context* ctx = tuim::get_context();
     return ctx->containers_stack.back();
+}
+
+void tuim::update_container() {
+    tuim::context* ctx = tuim::get_context();
+    tuim::container& current_ctn = tuim::get_container();
+    current_ctn.cursor = ctx->cursor;
+    current_ctn.size.x = std::max(current_ctn.size.x, std::abs(current_ctn.cursor.x - current_ctn.pos.x));
+    current_ctn.size.y = std::max(current_ctn.size.y, std::abs(current_ctn.cursor.y - current_ctn.pos.y));
+}
+
+void tuim::move_container_cursor(vec2 pos) {
+    container& ctn = get_container();
+    ctn.cursor = pos;
 }
 
 void tuim::start_container() {
@@ -1285,13 +1387,6 @@ void tuim::end_container() {
 
 }
 
-void tuim::update_container() {
-    tuim::context* ctx = tuim::get_context();
-    tuim::container& current_ctn = tuim::get_container();
-    current_ctn.cursor = ctx->cursor;
-    current_ctn.size.x = std::max(current_ctn.size.x, std::abs(current_ctn.cursor.x - current_ctn.pos.x));
-    current_ctn.size.y = std::max(current_ctn.size.y, std::abs(current_ctn.cursor.y - current_ctn.pos.y));
-}
 
 void tuim::start_column() {
 
@@ -1301,14 +1396,13 @@ void tuim::end_column() {
 
 }
 
-void tuim::move_container_cursor(vec2 pos) {
-    container& ctn = get_container();
-    ctn.cursor = pos;
-}
+/***********************************************************
+*                   INTERNAL FUNCTIONS                     *
+***********************************************************/
 
 void tuim::impl::open_terminal() {
     #ifdef __linux__ 
-        /* Get the executable full path. */
+        // Get the executable full path
         std::string exec = "\"" + std::filesystem::canonical("/proc/self/exe").string() + "\" f";
         execl("/usr/bin/gnome-terminal", "gnome-terminal", "--full-screen", "-q", "-e", exec.c_str(), (char*)0);
     #elif _WIN32
@@ -1317,7 +1411,7 @@ void tuim::impl::open_terminal() {
 
     #endif
 
-    /* Close current process to avoid duplicates */
+    // Close current process to avoid duplicates
     exit(EXIT_SUCCESS);
 }
 
@@ -1330,12 +1424,16 @@ void tuim::impl::add_printing_info(const std::string &str) {
     ctx->printings_stack.push_back(tuim::printing_info{pos, width});
 }
 
+/***********************************************************
+*                  KEYBOARD UTILITIES                      *
+***********************************************************/
+
 tuim::keyboard::keycode tuim::keyboard::get_pressed() {
     #ifdef __linux__
         int count = 0;
         unsigned char codes[4] = { 0, 0, 0, 0 };
 
-        /* Loop for escaped characters */
+        // Loop for escaped characters
         do {
             char buf;
             termios term;
@@ -1358,7 +1456,7 @@ tuim::keyboard::keycode tuim::keyboard::get_pressed() {
             count++;
         } while(tuim::keyboard::is_pressed() && count < 4);
 
-        /* Get the final key code */
+        // Get the final key code
         tuim::keyboard::keycode code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + (codes[2] << (8*(count-3))) + codes[3];
         return code;
 
@@ -1393,8 +1491,12 @@ bool tuim::keyboard::is_pressed() {
     #endif
 }
 
+/***********************************************************
+*                    STRING FUNCTIONS                      *
+***********************************************************/
+
 size_t tuim::string::length(const std::string &str) {
-    /* https://stackoverflow.com/a/61692729 */
+    // https://stackoverflow.com/a/61692729
     size_t len = 0;
     unsigned char c = str[0];
     for (size_t i = 0; c != 0; len++) {
@@ -1421,9 +1523,9 @@ std::string tuim::string::parse_styles(const std::string &str) {
 
     for(size_t i = 0; i < str.length(); i++) {
 
-        /* Skip if character is escaped */
+        // Skip if character is escaped
         if(escaped) {
-            /* Add an anti-slash there was not any color code to escape */
+            // Add an anti-slash there was not any color code to escape
             if(str[i] != TUIM_STYLE_CODE && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') parsed += "\\";
 
             parsed += str[i];
@@ -1518,7 +1620,7 @@ std::string tuim::string::escape_styles(const std::string& str) {
     for(size_t i = 0; i < str.length(); i++) {
 
         if(escaped) {
-            /* Add an anti-slash if there was not any color code to escape */
+            // Add an anti-slash if there was not any color code to escape
             if(str[i] != TUIM_STYLE_CODE && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') parsed += "\\";
             parsed += str[i];
             escaped = false;
@@ -1671,6 +1773,72 @@ bool tuim::string::is_vowel(uint32_t code) {
     return false;
 }
 
+/***********************************************************
+*                        COLORS                            *
+***********************************************************/
+
+tuim::color::color tuim::color::from_code(std::string str) {
+    context* ctx = get_context();
+    
+    // Check if there is the background character
+    bool background = (str[0] == TUIM_COLOR_BACKGROUND);
+
+    // Remove background character if there is one
+    if(background) str = str.substr(1, str.length() - 1);
+
+    color color = ctx->style_codes.at(str).style_color;
+    color.background = background;
+
+    return color;
+}
+
+tuim::color::color tuim::color::from_hex(std::string str) {
+    // Check if there is the background character
+    bool background = (str[0] == TUIM_COLOR_BACKGROUND);
+
+    // Remove background character if there is one
+    if(background) str = str.substr(1, str.length() - 1);
+
+    // Convert string to int
+    unsigned int hex;
+    std::stringstream ss;
+    ss << std::hex << str;
+    ss >> hex;
+
+    color color = from_hex(hex);
+    color.background = background;
+
+    return color;
+}
+
+tuim::color::color tuim::color::from_hex(unsigned int hex) {
+    color color;
+    color.r = (hex >> 16) & 0xFF;
+    color.g = (hex >> 8) & 0xFF;
+    color.b = (hex) & 0xFF;
+    color.background = false;
+    return color;
+}
+
+unsigned int tuim::color::to_hex(color color) {
+    return (color.r << 16) + (color.g << 8) + color.b;
+}
+
+std::string tuim::color::to_ansi(color color) {
+    // https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
+
+    std::string ansi = "\33[" + std::string(color.background ? "48" : "38") + ";2;";
+    ansi += std::to_string(color.r) + ";";
+    ansi += std::to_string(color.g) + ";";
+    ansi += std::to_string(color.b) + "m";
+
+    return ansi;
+}
+
+/***********************************************************
+*                    FONT & TEXT TAGS                      *
+***********************************************************/
+
 void tuim::font::register_style(const std::string &code, const style &style) {
     context* ctx = get_context();
     ctx->style_codes.emplace(code, style);
@@ -1702,61 +1870,4 @@ tuim::font::style tuim::font::make_style(mode mode) {
     return style;
 }
 
-tuim::color::color tuim::color::from_code(std::string str) {
-    context* ctx = get_context();
-    
-    /* Check if there is the background character */
-    bool background = (str[0] == TUIM_COLOR_BACKGROUND);
-
-    /* Remove background character if there is one */
-    if(background) str = str.substr(1, str.length() - 1);
-
-    color color = ctx->style_codes.at(str).style_color;
-    color.background = background;
-
-    return color;
-}
-
-tuim::color::color tuim::color::from_hex(std::string str) {
-    /* Check if there is the background character */
-    bool background = (str[0] == TUIM_COLOR_BACKGROUND);
-
-    /* Remove background character if there is one */
-    if(background) str = str.substr(1, str.length() - 1);
-
-    /* Convert string to int */
-    unsigned int hex;
-    std::stringstream ss;
-    ss << std::hex << str;
-    ss >> hex;
-
-    color color = from_hex(hex);
-    color.background = background;
-
-    return color;
-}
-
-tuim::color::color tuim::color::from_hex(unsigned int hex) {
-    color color;
-    color.r = (hex >> 16) & 0xFF;
-    color.g = (hex >> 8) & 0xFF;
-    color.b = (hex) & 0xFF;
-    color.background = false;
-    return color;
-}
-
-unsigned int tuim::color::to_hex(color color) {
-    return (color.r << 16) + (color.g << 8) + color.b;
-}
-
-std::string tuim::color::to_ansi(color color) {
-    /* https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797 */
-
-    std::string ansi = "\33[" + std::string(color.background ? "48" : "38") + ";2;";
-    ansi += std::to_string(color.r) + ";";
-    ansi += std::to_string(color.g) + ";";
-    ansi += std::to_string(color.b) + "m";
-
-    return ansi;
-}
 #endif
