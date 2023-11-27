@@ -472,7 +472,7 @@ void tuim::delete_context() {
 }
 
 tuim::context* tuim::get_context() {
-    // TODO -> add assert for ctx 0
+    if(tuim::ctx == nullptr) throw std::runtime_error("error context undefined");
     return tuim::ctx;
 }
 
@@ -538,6 +538,7 @@ void tuim::new_line() {
 }
 
 void tuim::clear() {
+    // Reset style, clear screen and move to home position
     printf("\033[0m\033[2J\033[3J\033[H");
     ctx->style_modes.clear();
     ctx->margins_stack.clear();
@@ -552,25 +553,31 @@ void tuim::clear_line() {
 
 void tuim::print_to_screen(std::string str) {
     context* ctx = get_context();
+
+    // We read the string and move the global cursor accordingly
     for(size_t i = 0; i < str.length();) {
         size_t l = tuim::string::char_length(str.at(i));
+        // Move global cursor to next line when line break
+        // and take into account the current margin
         if(str.at(i) == '\n') {
             ctx->cursor = { (int) get_active_margin(), ctx->cursor.y+1};
             if(ctx->cursor.x > 1) {
                 std::string margin = "\033[" + std::to_string(ctx->cursor.x) + "G";
                 str = str.substr(0, i+1) + margin + str.substr(i+1, str.length());
                 i += margin.length();
-
-                // printf("margin: %d %d%stest", ctx->cursor.x, i, margin.c_str());
-                // printf("\033[%dG", ctx->cursor.x);
             }
         }
+        // ANSI Escape sequences are not displayed in the terminal
+        // So we don't move the cursor when changing color or mode
+        // Note: Escape sequences related to the cursor are not checked yet
         else if(str.at(i) == '\033') {
             do {
                 i++;
             } while(i < str.length() && !((str.at(i) >= 'a' && str.at(i) <= 'z') || (str.at(i) >= 'A' && str.at(i) <= 'Z')));
         }
+        // Other character only take one "space"
         else ctx->cursor.x++;
+
         i += l;
     }
     update_container();
@@ -579,18 +586,17 @@ void tuim::print_to_screen(std::string str) {
 
 template<typename ... Args>
 void tuim::print(const char* fmt, Args ... args) {
+    // Replace the arguments in the format string
     int size_s = std::snprintf(nullptr, 0, fmt, args...) + 1;
-    if(size_s <= 0) throw std::runtime_error( "Error during formatting.");
-
+    if(size_s <= 0) throw std::runtime_error("error during formatting");
     auto size = static_cast<size_t>(size_s);
     std::unique_ptr<char[]> buf(new char[ size ]);
-
     std::snprintf(buf.get(), size, fmt, args...);
-
     std::string parsed = std::string( buf.get(), buf.get() + size - 1);
+
+    // Replace the style tags by their ANSI equivalent
     parsed = tuim::string::parse_styles(parsed);
 
-    // Print formatted text
     print_to_screen(parsed);
 
     int width = calc_text_width(parsed);
@@ -757,6 +763,7 @@ void tuim::display() {
 
 int tuim::calc_text_width(const std::string &str, int padding) {
     // https://github.com/chalk/ansi-regex/blob/main/index.js
+    // Remove ANSI Escape sequences because they are not displayed
     static const std::string pattern = "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))";
     static const std::regex regex(pattern);
     std::string stripped = std::regex_replace(tuim::string::parse_styles(str), regex, "");
@@ -803,11 +810,7 @@ tuim::vec2 tuim::calc_relative_position() {
 void tuim::text(const std::string& id, const std::string& text) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
-
-    // vec2 pos = calc_relative_position();
-
     tuim::print(text.c_str());
-    // tuim::print("\n");
 }
 
 void tuim::text(const std::string& text) {
@@ -896,7 +899,7 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
             line_break = false;
         }
 
-        //Add space between words.
+        //Add a space between words.
         if(line_ch_len > 0) {
             line += " ";
             line_ch_len++;
@@ -908,10 +911,6 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
 
         if(skip_next_line)
             line_break = true;
-
-        // Print line without extra blank if it is the last word of the text.
-        // if(word_pos + 1 > text.length()) {
-        // }
 
         i = word_pos + 1;
     }
@@ -1233,10 +1232,12 @@ void tuim::animation(const std::string& id, int* current, float speed, const std
     tuim::item item = tuim::item{ item_id, tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
 
+    // Get current time in milliseconds
     uint64_t current_time = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()
     ).count();
 
+    // Check if first iteration or time to change frame
     if(timestamps.count(item_id) == 0 || current_time - timestamps.at(item_id) >= speed * 1000) {
         timestamps[item_id] = current_time;
         (*current) = (*current == (int) frames.size()-1) ? 0 : *current + 1;
@@ -1341,7 +1342,7 @@ void tuim::pop_margin() {
     context* ctx = get_context();
     if(ctx->margins_stack.size() > 0)
         ctx->margins_stack.pop_back();
-
+    // Move cursor to new margin
     ctx->cursor.x = get_active_margin();
     printf("\033[%dG", ctx->cursor.x);
 }
@@ -1439,7 +1440,6 @@ tuim::keyboard::keycode tuim::keyboard::get_pressed() {
             termios term;
             fflush(stdout);
             tcgetattr(0, &term);
-            // term.c_lflag &= ~(ICANON | ECHO);
             term.c_lflag &= ~ICANON;
             term.c_cc[VMIN] = 1;
             term.c_cc[VTIME] = 0;
@@ -1447,7 +1447,6 @@ tuim::keyboard::keycode tuim::keyboard::get_pressed() {
 
             read(0, &buf, 1);
 
-            // term.c_lflag |= ICANON | ECHO;
             term.c_lflag |= ICANON;
             tcsetattr(0, TCSADRAIN, &term);
 
@@ -1471,7 +1470,6 @@ bool tuim::keyboard::is_pressed() {
     #ifdef __linux__ 
         termios term;
         tcgetattr(0, &term);
-        // term.c_lflag &= ~(ICANON | ECHO);
         term.c_lflag &= ~ICANON;
         tcsetattr(0, TCSANOW, &term);
 
@@ -1479,7 +1477,6 @@ bool tuim::keyboard::is_pressed() {
         ioctl(0, FIONREAD, &byteswaiting);
 
         tcgetattr(0, &term);
-        // term.c_lflag |= ICANON | ECHO;
         term.c_lflag |= ICANON;
         tcsetattr(0, TCSANOW, &term);
 
@@ -1590,7 +1587,7 @@ std::string tuim::string::parse_styles(const std::string &str) {
             bool is_hex = true;
 
             for(size_t i = 0; i < code.length(); i += tuim::string::char_length(code.at(i))) {
-                if(i == 0 && code.at(i) == '_') continue;
+                if(i == 0 && code.at(i) == TUIM_COLOR_BACKGROUND) continue;
                 if((code.at(i) < '0' || code.at(i) > '9') && (code.at(i) < 'a' || code.at(i) > 'f')) {
                     is_hex = false;
                     break;
