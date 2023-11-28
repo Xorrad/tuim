@@ -1110,7 +1110,7 @@ inline bool tuim::input_text(const std::string& id, std::string* value, const st
                 if(cursor < value->length()) {
                     size_t line_pos = 0;
                     size_t next_line_len = 0;
-                    int tmp_cursor = cursor;
+                    size_t tmp_cursor = cursor;
 
                     // Count position in initial line.
                     while(tmp_cursor > 0) {
