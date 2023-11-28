@@ -318,7 +318,7 @@ namespace tuim {
     *                    GLOBAL VARIABLES                      *
     ***********************************************************/
 
-    context* ctx; // Global context variable for the gui
+    inline context* ctx; // Global context variable for the gui
 
     /***********************************************************
     *                    WINDOW FUNCTIONS                      *
@@ -957,13 +957,14 @@ inline bool tuim::slider(const std::string& id, T* value, T min, T max, T step) 
             tuim::print("[*] ");
             tuim::set_active_id(item.id);
         }
-        else if(tuim::is_pressed(keyboard::LEFT)) {
+        else tuim::print("[x] ");
+
+        if(tuim::is_pressed(keyboard::LEFT)) {
             *value = std::max(min, *value - step);
         }
         else if(tuim::is_pressed(keyboard::RIGHT)) {
             *value = std::min(max, *value + step);
         }
-        else tuim::print("[x] ");
     }
     else tuim::print("[ ] ");
 
@@ -997,7 +998,9 @@ inline bool tuim::input_number(const std::string& id, const std::string& text, T
             tuim::hide_user_inputs();
             tuim::set_active_id(item.id);
         }
-        else if(tuim::is_pressed(keyboard::LEFT)) {
+        else tuim::print("[x] ");
+        
+        if(tuim::is_pressed(keyboard::LEFT)) {
             *value = std::max(min, *value - step);
             tuim::set_active_id(item.id);
         }
@@ -1005,7 +1008,6 @@ inline bool tuim::input_number(const std::string& id, const std::string& text, T
             *value = std::min(max, *value + step);
             tuim::set_active_id(item.id);
         }
-        else tuim::print("[x] ");
     }
     else tuim::print("[ ] ");
 
