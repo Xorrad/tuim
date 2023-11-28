@@ -65,7 +65,7 @@ namespace tuim {
     typedef uint32_t input_text_flags;
     namespace keyboard {
         typedef uint32_t keycode;
-    };
+    }
 
     // Structures
     struct context;
@@ -74,10 +74,10 @@ namespace tuim {
     struct vec2;
     namespace color {
         struct color;
-    };
+    }
     namespace font {
         struct style;
-    };
+    }
 
     /***********************************************************
     *                    MATH UTILITIES                        *
