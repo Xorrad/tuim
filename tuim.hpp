@@ -313,7 +313,7 @@ namespace tuim {
     *                    GLOBAL VARIABLES                      *
     ***********************************************************/
 
-    context* ctx; // Global context variable for the gui
+    inline context* ctx; // Global context variable for the gui
 
     /***********************************************************
     *                    WINDOW FUNCTIONS                      *
@@ -449,7 +449,7 @@ namespace tuim {
 *                    WINDOW FUNCTIONS                      *
 ***********************************************************/
 
-void tuim::init(int argc, char* argv[]) {
+inline void tuim::init(int argc, char* argv[]) {
     // Restart if not in separate terminal
     if(argc < 2 || strcmp(argv[1], "f") != 0) {
         //tuim::impl::open_terminal();
@@ -458,56 +458,56 @@ void tuim::init(int argc, char* argv[]) {
     tuim::create_context();
 }
 
-void tuim::create_context() {
+inline void tuim::create_context() {
     printf("\033[?1049h"); // enable alternate buffer
     tuim::hide_user_inputs();
     tuim::ctx = new tuim::context();
 }
 
-void tuim::delete_context() {
+inline void tuim::delete_context() {
     set_cursor_visible(true);
     printf("\033[?1049l"); // disabled alternate buffer
     tuim::show_user_inputs();
     delete tuim::ctx;
 }
 
-tuim::context* tuim::get_context() {
+inline tuim::context* tuim::get_context() {
     if(tuim::ctx == nullptr) throw std::runtime_error("error context undefined");
     return tuim::ctx;
 }
 
-void tuim::set_title(std::string title) {
+inline void tuim::set_title(std::string title) {
     // http://www.faqs.org/docs/Linux-mini/Xterm-Title.html#s3
     printf("\033]0;%s\007", title.c_str());
 }
 
-void tuim::set_cursor(vec2 pos) {
+inline void tuim::set_cursor(vec2 pos) {
     context* ctx = get_context();
     ctx->cursor = pos;
 }
 
-tuim::vec2 tuim::get_cursor() {
+inline tuim::vec2 tuim::get_cursor() {
     context* ctx = get_context();
     return ctx->cursor;
 }
 
-void tuim::gotoxy(vec2 pos) {
+inline void tuim::gotoxy(vec2 pos) {
     printf("\033[%d;%dH", pos.y, pos.x);
     tuim::set_cursor(pos);
 }
 
-void tuim::set_cursor_visible(bool cursor) {
+inline void tuim::set_cursor_visible(bool cursor) {
     context* ctx = get_context();
     ctx->cursor_visible = cursor;
     printf("\033[?25%c", (cursor ? 'h' : 'l'));
 }
 
-bool tuim::is_cursor_visible() {
+inline bool tuim::is_cursor_visible() {
     context* ctx = get_context();
     return ctx->cursor_visible;
 }
 
-void tuim::show_user_inputs() {
+inline void tuim::show_user_inputs() {
     #ifdef __linux__ 
         termios term;
         tcgetattr(0, &term);
@@ -520,7 +520,7 @@ void tuim::show_user_inputs() {
     #endif
 }
 
-void tuim::hide_user_inputs() {
+inline void tuim::hide_user_inputs() {
 #ifdef __linux__ 
         termios term;
         tcgetattr(0, &term);
@@ -533,11 +533,11 @@ void tuim::hide_user_inputs() {
     #endif
 }
 
-void tuim::new_line() {
+inline void tuim::new_line() {
     print_to_screen("\n");
 }
 
-void tuim::clear() {
+inline void tuim::clear() {
     // Reset style, clear screen and move to home position
     printf("\033[0m\033[2J\033[3J\033[H");
     ctx->style_modes.clear();
@@ -546,12 +546,12 @@ void tuim::clear() {
     set_cursor({1, 1});
 }
 
-void tuim::clear_line() {
+inline void tuim::clear_line() {
     printf("\033[2K");
     set_cursor({1, get_cursor().y});
 }
 
-void tuim::print_to_screen(std::string str) {
+inline void tuim::print_to_screen(std::string str) {
     context* ctx = get_context();
 
     // We read the string and move the global cursor accordingly
@@ -585,7 +585,7 @@ void tuim::print_to_screen(std::string str) {
 }
 
 template<typename ... Args>
-void tuim::print(const char* fmt, Args ... args) {
+inline void tuim::print(const char* fmt, Args ... args) {
     // Replace the arguments in the format string
     int size_s = std::snprintf(nullptr, 0, fmt, args...) + 1;
     if(size_s <= 0) throw std::runtime_error("error during formatting");
@@ -610,7 +610,7 @@ void tuim::print(const char* fmt, Args ... args) {
 *                     ITEMS FUNCTIONS                      *
 ***********************************************************/
 
-tuim::item_id tuim::str_to_id(const std::string &str) {
+inline tuim::item_id tuim::str_to_id(const std::string &str) {
     // http://www.cse.yorku.ca/~oz/hash.html
     unsigned long hash = 5381;
     for (size_t i = 0; i < str.size(); ++i)
@@ -618,12 +618,12 @@ tuim::item_id tuim::str_to_id(const std::string &str) {
     return (tuim::item_id) hash;
 }
 
-tuim::item_id tuim::get_id() {
+inline tuim::item_id tuim::get_id() {
     tuim::context* ctx = tuim::get_context();
     return ctx->items_stack.at(ctx->items_stack.size() - 1).id;
 }
 
-uint32_t tuim::get_index(tuim::item_id id) {
+inline uint32_t tuim::get_index(tuim::item_id id) {
     tuim::context *ctx = tuim::get_context();
     for(size_t i = 0; i < ctx->items_stack.size(); i++) {
         if(ctx->items_stack.at(i).id == id) {
@@ -633,41 +633,41 @@ uint32_t tuim::get_index(tuim::item_id id) {
     return -1;
 }
 
-uint32_t tuim::get_hovered_index() {
+inline uint32_t tuim::get_hovered_index() {
     tuim::context *ctx = tuim::get_context();
     return tuim::get_index(ctx->hovered_id);
 }
 
-bool tuim::was_item_active() {
+inline bool tuim::was_item_active() {
     tuim::context* ctx = tuim::get_context();
     return ctx->last_active_id == tuim::get_id();
 }
 
-bool tuim::is_item_active() {
+inline bool tuim::is_item_active() {
     tuim::context* ctx = tuim::get_context();
     return ctx->active_id == tuim::get_id();
 }
 
-bool tuim::is_item_hovered() {
+inline bool tuim::is_item_hovered() {
     tuim::context* ctx = tuim::get_context();
     return ctx->hovered_id == tuim::get_id();
 }
 
-bool tuim::is_pressed(tuim::keyboard::key key) {
+inline bool tuim::is_pressed(tuim::keyboard::key key) {
     return tuim::is_pressed((tuim::keyboard::keycode) key);
 }
 
-bool tuim::is_pressed(tuim::keyboard::keycode code) {
+inline bool tuim::is_pressed(tuim::keyboard::keycode code) {
     tuim::context* ctx = tuim::get_context();
     return ctx->pressed_key == code;
 }
 
-bool tuim::is_pressed(const char* c) {
+inline bool tuim::is_pressed(const char* c) {
     tuim::context* ctx = tuim::get_context();
     return ctx->pressed_key == tuim::string::utf8_to_int(c);
 }
 
-bool tuim::has_hoverable() {
+inline bool tuim::has_hoverable() {
     tuim::context* ctx = tuim::get_context();
     for(size_t i = 0; i < ctx->items_stack.size(); i++) {
         if(!(ctx->items_stack.at(i).flags & tuim::item_flags_::ITEM_FLAGS_DISABLED))
@@ -676,23 +676,23 @@ bool tuim::has_hoverable() {
     return false;
 }
 
-void tuim::set_active_id(item_id id) {
+inline void tuim::set_active_id(item_id id) {
     tuim::context *ctx = tuim::get_context();
     ctx->active_id = id;
 }
 
-void tuim::set_hovered_id(item_id id) {
+inline void tuim::set_hovered_id(item_id id) {
     tuim::context *ctx = tuim::get_context();
     ctx->hovered_id = id;
 }
 
-void tuim::add_item(item item) {
+inline void tuim::add_item(item item) {
     tuim::context *ctx = tuim::get_context();
     ctx->items_stack.push_back(item);
     ctx->printings_stack.clear();
 }
 
-void tuim::remove_item(item_id id) {
+inline void tuim::remove_item(item_id id) {
     tuim::context *ctx = tuim::get_context();
     for(size_t i = 0; i < ctx->items_stack.size(); i++) {
         if(ctx->items_stack.at(i).id == i)
@@ -700,7 +700,7 @@ void tuim::remove_item(item_id id) {
     }
 }
 
-void tuim::update(tuim::keyboard::keycode key) {
+inline void tuim::update(tuim::keyboard::keycode key) {
     tuim::context* ctx = tuim::get_context();
     ctx->pressed_key = key;
 
@@ -757,11 +757,11 @@ void tuim::update(tuim::keyboard::keycode key) {
     ctx->items_stack.clear();
 }
 
-void tuim::display() {
+inline void tuim::display() {
 
 }
 
-int tuim::calc_text_width(const std::string &str, int padding) {
+inline int tuim::calc_text_width(const std::string &str, int padding) {
     // https://github.com/chalk/ansi-regex/blob/main/index.js
     // Remove ANSI Escape sequences because they are not displayed
     static const std::string pattern = "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))";
@@ -773,7 +773,7 @@ int tuim::calc_text_width(const std::string &str, int padding) {
     return width;
 }
 
-int tuim::calc_text_vector_width(const std::vector<std::string> &str, int padding) {
+inline int tuim::calc_text_vector_width(const std::vector<std::string> &str, int padding) {
     int max_width = 0;
     for(size_t i = 0; i < str.size(); i++) {
         int width = tuim::calc_text_width(str[i], padding);
@@ -782,7 +782,7 @@ int tuim::calc_text_vector_width(const std::vector<std::string> &str, int paddin
     return max_width + padding*2;
 }
 
-std::vector<int> tuim::calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding) {
+inline std::vector<int> tuim::calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding) {
     std::vector<int> columns_width = std::vector<int>(columns.size(), 0);
     for(size_t i = 0; i < columns.size(); i++) {
         int max_width = 0;
@@ -795,7 +795,7 @@ std::vector<int> tuim::calc_columns_width(const std::vector<std::string> &column
     return columns_width;
 }
 
-tuim::vec2 tuim::calc_relative_position() {
+inline tuim::vec2 tuim::calc_relative_position() {
     context* ctx = get_context();
     container ctn = ctx->containers_stack.back();
     vec2 pos = ctn.cursor;
@@ -807,24 +807,24 @@ tuim::vec2 tuim::calc_relative_position() {
 *                    COMPONENTS/ITEMS                      *
 ***********************************************************/
 
-void tuim::text(const std::string& id, const std::string& text) {
+inline void tuim::text(const std::string& id, const std::string& text) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
     tuim::print(text.c_str());
 }
 
-void tuim::text(const std::string& text) {
+inline void tuim::text(const std::string& text) {
     tuim::item item = tuim::item{ tuim::str_to_id(text), tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
     tuim::print(text.c_str());
 }
 
-void tuim::hr(int length) {
+inline void tuim::hr(int length) {
     std::string str = "\n&s" + tuim::string::fill("―", length) + "&r\n";
     tuim::text(str);
 }
 
-void tuim::paragraph(const std::string& id, const std::string& text, unsigned int width) {
+inline void tuim::paragraph(const std::string& id, const std::string& text, unsigned int width) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_DISABLED };
     tuim::add_item(item);
 
@@ -925,7 +925,7 @@ void tuim::paragraph(const std::string& id, const std::string& text, unsigned in
     tuim::pop_margin();
 }
 
-bool tuim::button(const std::string& id, const std::string& text, button_flags flags) {
+inline bool tuim::button(const std::string& id, const std::string& text, button_flags flags) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
@@ -943,7 +943,7 @@ bool tuim::button(const std::string& id, const std::string& text, button_flags f
 }
 
 template <typename T>
-bool tuim::slider(const std::string& id, T* value, T min, T max, T step) {
+inline bool tuim::slider(const std::string& id, T* value, T min, T max, T step) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
@@ -980,7 +980,7 @@ bool tuim::slider(const std::string& id, T* value, T min, T max, T step) {
 }
 
 template <typename T>
-bool tuim::input_number(const std::string& id, const std::string& text, T* value, T min, T max, T step) {
+inline bool tuim::input_number(const std::string& id, const std::string& text, T* value, T min, T max, T step) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
@@ -1010,7 +1010,7 @@ bool tuim::input_number(const std::string& id, const std::string& text, T* value
 }
 
 template <typename U>
-bool tuim::input_enum(const std::string& id, const std::string& text, U* value, int max, const std::map<U, std::string>& labels) {
+inline bool tuim::input_enum(const std::string& id, const std::string& text, U* value, int max, const std::map<U, std::string>& labels) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
@@ -1033,11 +1033,11 @@ bool tuim::input_enum(const std::string& id, const std::string& text, U* value, 
     return tuim::is_item_active();
 }
 
-bool tuim::input_bool(const std::string& id, const std::string& text, bool* value, const std::map<bool, std::string>& labels) {
+inline bool tuim::input_bool(const std::string& id, const std::string& text, bool* value, const std::map<bool, std::string>& labels) {
     return input_enum<bool>(id, text, value, 2, labels);
 }
 
-bool tuim::input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags) {
+inline bool tuim::input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags) {
     context* ctx = get_context();
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
@@ -1207,7 +1207,7 @@ bool tuim::input_text(const std::string& id, std::string* value, const std::stri
     return tuim::is_item_active();
 }
 
-bool tuim::checkbox(const std::string& id, const std::string& text, bool* value) {
+inline bool tuim::checkbox(const std::string& id, const std::string& text, bool* value) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_NONE };
     tuim::add_item(item);
 
@@ -1225,7 +1225,7 @@ bool tuim::checkbox(const std::string& id, const std::string& text, bool* value)
     return tuim::is_item_active();
 }
 
-void tuim::animation(const std::string& id, int* current, float speed, const std::vector<std::string>& frames) {
+inline void tuim::animation(const std::string& id, int* current, float speed, const std::vector<std::string>& frames) {
     static std::map<tuim::item_id, uint64_t> timestamps;
     
     tuim::item_id item_id = tuim::str_to_id(id);
@@ -1246,7 +1246,7 @@ void tuim::animation(const std::string& id, int* current, float speed, const std
     tuim::print(frames.at(*current).c_str());
 }
 
-void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding) {
+inline void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding) {
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
 
@@ -1333,12 +1333,12 @@ void tuim::scroll_table(const char* id, int *cursor, int *key, std::vector<std::
 *                    STYLE FUNCTIONS                       *
 ***********************************************************/
 
-void tuim::push_margin(uint32_t margin) {
+inline void tuim::push_margin(uint32_t margin) {
     context* ctx = get_context();
     ctx->margins_stack.push_back(margin);
 }
 
-void tuim::pop_margin() {
+inline void tuim::pop_margin() {
     context* ctx = get_context();
     if(ctx->margins_stack.size() > 0)
         ctx->margins_stack.pop_back();
@@ -1347,7 +1347,7 @@ void tuim::pop_margin() {
     printf("\033[%dG", ctx->cursor.x);
 }
 
-uint32_t tuim::get_active_margin() {
+inline uint32_t tuim::get_active_margin() {
     context* ctx = get_context();
     if(ctx->margins_stack.size() == 0)
         return 1;
@@ -1358,12 +1358,12 @@ uint32_t tuim::get_active_margin() {
 *                   CONTAINERS FUNCTIONS                   *
 ***********************************************************/
 
-tuim::container& tuim::get_container() {
+inline tuim::container& tuim::get_container() {
     tuim::context* ctx = tuim::get_context();
     return ctx->containers_stack.back();
 }
 
-void tuim::update_container() {
+inline void tuim::update_container() {
     tuim::context* ctx = tuim::get_context();
     tuim::container& current_ctn = tuim::get_container();
     current_ctn.cursor = ctx->cursor;
@@ -1371,12 +1371,12 @@ void tuim::update_container() {
     current_ctn.size.y = std::max(current_ctn.size.y, std::abs(current_ctn.cursor.y - current_ctn.pos.y));
 }
 
-void tuim::move_container_cursor(vec2 pos) {
+inline void tuim::move_container_cursor(vec2 pos) {
     container& ctn = get_container();
     ctn.cursor = pos;
 }
 
-void tuim::start_container() {
+inline void tuim::start_container() {
     tuim::context* ctx = tuim::get_context();
     tuim::container current_ctn = tuim::get_container();
     tuim::container ctn = tuim::container{ current_ctn.cursor, {0, 0} };
@@ -1384,16 +1384,16 @@ void tuim::start_container() {
     ctx->containers_stack.push_back(ctn);
 }
 
-void tuim::end_container() {
+inline void tuim::end_container() {
 
 }
 
 
-void tuim::start_column() {
+inline void tuim::start_column() {
 
 }
 
-void tuim::end_column() {
+inline void tuim::end_column() {
 
 }
 
@@ -1401,7 +1401,7 @@ void tuim::end_column() {
 *                   INTERNAL FUNCTIONS                     *
 ***********************************************************/
 
-void tuim::impl::open_terminal() {
+inline void tuim::impl::open_terminal() {
     #ifdef __linux__ 
         // Get the executable full path
         std::string exec = "\"" + std::filesystem::canonical("/proc/self/exe").string() + "\" f";
@@ -1416,7 +1416,7 @@ void tuim::impl::open_terminal() {
     exit(EXIT_SUCCESS);
 }
 
-void tuim::impl::add_printing_info(const std::string &str) {
+inline void tuim::impl::add_printing_info(const std::string &str) {
     tuim::context *ctx = tuim::get_context();
 
     tuim::vec2 pos = tuim::get_cursor();
@@ -1429,7 +1429,7 @@ void tuim::impl::add_printing_info(const std::string &str) {
 *                  KEYBOARD UTILITIES                      *
 ***********************************************************/
 
-tuim::keyboard::keycode tuim::keyboard::get_pressed() {
+inline tuim::keyboard::keycode tuim::keyboard::get_pressed() {
     #ifdef __linux__
         int count = 0;
         unsigned char codes[4] = { 0, 0, 0, 0 };
@@ -1466,7 +1466,7 @@ tuim::keyboard::keycode tuim::keyboard::get_pressed() {
     #endif
 }
 
-bool tuim::keyboard::is_pressed() {
+inline bool tuim::keyboard::is_pressed() {
     #ifdef __linux__ 
         termios term;
         tcgetattr(0, &term);
@@ -1492,7 +1492,7 @@ bool tuim::keyboard::is_pressed() {
 *                    STRING FUNCTIONS                      *
 ***********************************************************/
 
-size_t tuim::string::length(const std::string &str) {
+inline size_t tuim::string::length(const std::string &str) {
     // https://stackoverflow.com/a/61692729
     size_t len = 0;
     unsigned char c = str[0];
@@ -1507,13 +1507,13 @@ size_t tuim::string::length(const std::string &str) {
     return len;
 }
 
-std::string tuim::string::fill(const std::string &str, size_t length) {
+inline std::string tuim::string::fill(const std::string &str, size_t length) {
     std::string res = "";
     for(size_t i = 0; i < length; i++) res += str;
     return res;
 }
 
-std::string tuim::string::parse_styles(const std::string &str) {
+inline std::string tuim::string::parse_styles(const std::string &str) {
     context* ctx = get_context();
     bool escaped = false;
     std::string parsed = "";
@@ -1610,7 +1610,7 @@ std::string tuim::string::parse_styles(const std::string &str) {
     return parsed;
 }
 
-std::string tuim::string::escape_styles(const std::string& str) {
+inline std::string tuim::string::escape_styles(const std::string& str) {
     bool escaped = false;
     std::string parsed = "";
 
@@ -1670,14 +1670,14 @@ std::string tuim::string::escape_styles(const std::string& str) {
     return parsed;
 }
 
-uint32_t tuim::string::utf8_to_int(const std::string& c) {
+inline uint32_t tuim::string::utf8_to_int(const std::string& c) {
     uint32_t code = 0;
     for(size_t i = 0; i < c.length(); i++)
         code += ((unsigned char) c[i] << (8 * (c.length()-i-1)));
     return code;
 }
 
-std::string tuim::string::int_to_utf8(uint32_t code) {
+inline std::string tuim::string::int_to_utf8(uint32_t code) {
     int length = 0;
     uint32_t code2 = code;
     while(code2 != 0) {
@@ -1692,7 +1692,7 @@ std::string tuim::string::int_to_utf8(uint32_t code) {
     return c;
 }
 
-bool tuim::string::is_printable(uint32_t code) {
+inline bool tuim::string::is_printable(uint32_t code) {
     if((code & 0x1B5B00) == 0x1B5B00)
         return false;
     if(tuim::string::int_to_utf8(code)[0] == 0x1B)
@@ -1702,7 +1702,7 @@ bool tuim::string::is_printable(uint32_t code) {
     return true;
 }
 
-size_t tuim::string::char_length(char c) {
+inline size_t tuim::string::char_length(char c) {
     if((0b00000001 & (c >> 7)) == 0b0)
         return 1;
     if((0b00000111 & (c >> 5)) == 0b110)
@@ -1714,7 +1714,7 @@ size_t tuim::string::char_length(char c) {
     return 1;
 }
 
-uint32_t tuim::string::to_lowercase(uint32_t code) {
+inline uint32_t tuim::string::to_lowercase(uint32_t code) {
     //ß capital letter is ẞ
     if(code == 0xC39F)
         return 0xE1BA9E;
@@ -1743,7 +1743,7 @@ uint32_t tuim::string::to_lowercase(uint32_t code) {
     return code;
 }   
 
-bool tuim::string::is_alphanumeric(uint32_t code) {
+inline bool tuim::string::is_alphanumeric(uint32_t code) {
     #define BETWEEN(a, b) (code >= a && code <= b)
     if(BETWEEN('0', '9') || BETWEEN('a', 'z') || BETWEEN('A', 'Z'))
         return true;
@@ -1753,7 +1753,7 @@ bool tuim::string::is_alphanumeric(uint32_t code) {
     return false;
 }
 
-bool tuim::string::is_vowel(uint32_t code) {
+inline bool tuim::string::is_vowel(uint32_t code) {
     code = to_lowercase(code);
     #define IS(code, c) (code == static_cast<unsigned int>(c))
     #define BETWEEN(a, b) (code >= a && code <= b)
@@ -1774,7 +1774,7 @@ bool tuim::string::is_vowel(uint32_t code) {
 *                        COLORS                            *
 ***********************************************************/
 
-tuim::color::color tuim::color::from_code(std::string str) {
+inline tuim::color::color tuim::color::from_code(std::string str) {
     context* ctx = get_context();
     
     // Check if there is the background character
@@ -1789,7 +1789,7 @@ tuim::color::color tuim::color::from_code(std::string str) {
     return color;
 }
 
-tuim::color::color tuim::color::from_hex(std::string str) {
+inline tuim::color::color tuim::color::from_hex(std::string str) {
     // Check if there is the background character
     bool background = (str[0] == TUIM_COLOR_BACKGROUND);
 
@@ -1808,7 +1808,7 @@ tuim::color::color tuim::color::from_hex(std::string str) {
     return color;
 }
 
-tuim::color::color tuim::color::from_hex(unsigned int hex) {
+inline tuim::color::color tuim::color::from_hex(unsigned int hex) {
     color color;
     color.r = (hex >> 16) & 0xFF;
     color.g = (hex >> 8) & 0xFF;
@@ -1817,11 +1817,11 @@ tuim::color::color tuim::color::from_hex(unsigned int hex) {
     return color;
 }
 
-unsigned int tuim::color::to_hex(color color) {
+inline unsigned int tuim::color::to_hex(color color) {
     return (color.r << 16) + (color.g << 8) + color.b;
 }
 
-std::string tuim::color::to_ansi(color color) {
+inline std::string tuim::color::to_ansi(color color) {
     // https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797
 
     std::string ansi = "\33[" + std::string(color.background ? "48" : "38") + ";2;";
@@ -1836,31 +1836,31 @@ std::string tuim::color::to_ansi(color color) {
 *                    FONT & TEXT TAGS                      *
 ***********************************************************/
 
-void tuim::font::register_style(const std::string &code, const style &style) {
+inline void tuim::font::register_style(const std::string &code, const style &style) {
     context* ctx = get_context();
     ctx->style_codes.emplace(code, style);
 }
 
-tuim::font::mode tuim::font::from_code(const std::string &str) {
+inline tuim::font::mode tuim::font::from_code(const std::string &str) {
     context* ctx = get_context();
     return ctx->style_codes.at(str).style_mode;
 }
 
-std::string tuim::font::to_ansi(mode mode, bool enabled) {
+inline std::string tuim::font::to_ansi(mode mode, bool enabled) {
     int code = (int) mode;
     if(!enabled && mode != mode::RESET)
         code += 21;
     return "\033[" + std::to_string(code) + "m";
 }
 
-tuim::font::style tuim::font::make_style(color::color color) {
+inline tuim::font::style tuim::font::make_style(color::color color) {
     style style;
     style.type = style_type::COLOR;
     style.style_color = color;
     return style;
 }
 
-tuim::font::style tuim::font::make_style(mode mode) {
+inline tuim::font::style tuim::font::make_style(mode mode) {
     style style;
     style.type = style_type::MODE;
     style.style_mode = mode;
