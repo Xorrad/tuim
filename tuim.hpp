@@ -9,6 +9,11 @@
 
 #pragma once
 
+namespace tuim {
+    struct context;
+    extern context* ctx;
+}
+
 #ifndef TUIM_CPP
 #define TUIM_CPP
 
@@ -313,7 +318,7 @@ namespace tuim {
     *                    GLOBAL VARIABLES                      *
     ***********************************************************/
 
-    inline context* ctx; // Global context variable for the gui
+    context* ctx; // Global context variable for the gui
 
     /***********************************************************
     *                    WINDOW FUNCTIONS                      *
