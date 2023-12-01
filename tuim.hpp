@@ -826,7 +826,7 @@ inline void tuim::text(const std::string& text) {
 
 inline void tuim::hr(int length) {
     std::string str = "\n&s" + tuim::string::fill("―", length) + "&r\n";
-    tuim::text(str);
+    tuim::print(str.c_str());
 }
 
 inline void tuim::paragraph(const std::string& id, const std::string& text, unsigned int width) {
