@@ -171,6 +171,14 @@ namespace tuim {
             int g;
             int b;
             bool background;
+
+            bool operator==(const color& other) {
+                return r == other.r && g == other.g && b == other.b && background == other.background;
+            }
+            
+            bool operator!=(const color& other) {
+                return !(*this == other);
+            }
         };
 
         color from_code(std::string str); // Convert string color code to rgb
@@ -239,6 +247,39 @@ namespace tuim {
     };
 
     /***********************************************************
+    *                    SCREEN BUFFER                         *
+    ***********************************************************/
+    
+    namespace screen {
+        struct character {
+            std::string str;
+            color::color foreground;
+            color::color background;
+            std::vector<font::mode> modes;
+
+            bool operator==(const character& other) {
+                return str == other.str && foreground == other.foreground && background == other.background && modes == other.modes;
+            }
+        };
+
+        struct buffer {
+            vec2 size;
+            std::map<uint32_t, character> buffer;
+
+            vec2 get_position(uint32_t index); // Return the position of an index
+            uint32_t get_index(const vec2& pos); // Return the index of a position
+
+            bool is_in_buffer(uint32_t index); // Return false if the index is out of bounds
+            bool is_character(uint32_t index, const character& ch); // Check if character at index
+            character& get_character(uint32_t index); // Get the character at an index
+            void set_character(uint32_t index, character ch); // Change the character at an index
+
+            void resize(const vec2& new_size); // Resize the buffer
+            void print(); // Print the buffer
+        };
+    }
+    
+   /***********************************************************
     *                    UI STRUCTURES                         *
     ***********************************************************/
 
@@ -274,10 +315,15 @@ namespace tuim {
 
         std::map<std::string, font::style> style_codes; // Dictionary of registered styles
         std::map<font::mode, bool> style_modes; // Dictionary of active modes (BOLD, ITALIC...)
+        color::color foreground_color;
+        color::color background_color;
 
         std::vector<item> items_stack; // Items during last frame (?)
         std::vector<container> containers_stack; // Containers during current frame
         std::vector<uint32_t> margins_stack; // Current margins
+
+        screen::buffer last_frame; // The screen buffer of the last frame (already drawn)
+        screen::buffer current_frame; // The screen buffer of current frame (being drawn)
 
         std::vector<printing_info> printings_stack; // Store what has been drawn by the last item (not used)
 
@@ -304,10 +350,16 @@ namespace tuim {
             };
             style_modes = {};
 
+            foreground_color = {255,255,255,false};
+            background_color = {0,0,0,true};
+
             items_stack = std::vector<item>(0);
             containers_stack = std::vector<container>{ container{{0, 0}} };
             margins_stack = std::vector<uint32_t>(0);
-            
+
+            vec2 window_size = get_window_size();
+            last_frame = screen::buffer{window_size};
+            current_frame = screen::buffer{window_size};
 
             printings_stack = std::vector<printing_info>(0);
         }
@@ -329,6 +381,7 @@ namespace tuim {
     void delete_context(); // Delete the global gui context
     context* get_context(); // Get tuim user interface global context
 
+    vec2 get_window_size(); // Get the terminal window size (columns,rows)
     void set_title(std::string title); // Set terminal title
 
     void set_cursor(vec2 pos); // Change tuim global cursor
@@ -340,13 +393,17 @@ namespace tuim {
     void show_user_inputs(); // Enable displaying of user inputs
     void hide_user_inputs(); // Hide user inputs
 
+    color::color get_current_foreground();
+    color::color get_current_background();
+    std::vector<font::mode> get_current_modes();
+
     void new_line(); // Break to a new line
     void clear(); // Clear terminal output
     void clear_line(); // Clear terminal output
     void print_to_screen(std::string str); // Print text to screen and reset style
     template<typename ... Args> void print(const char* fmt, Args ... args); // Format text for printing to screen
     void update(tuim::keyboard::keycode key); // Update the items
-    void display(); // Display pushed items (no used)
+    void display(); // Display screen
 
     /***********************************************************
     *                     ITEMS FUNCTIONS                      *
@@ -481,6 +538,12 @@ inline tuim::context* tuim::get_context() {
     return tuim::ctx;
 }
 
+inline tuim::vec2 tuim::get_window_size() {
+    winsize size;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
+    return vec2{size.ws_col, size.ws_row};
+}
+
 inline void tuim::set_title(std::string title) {
     // http://www.faqs.org/docs/Linux-mini/Xterm-Title.html#s3
     printf("\033]0;%s\007", title.c_str());
@@ -497,6 +560,7 @@ inline tuim::vec2 tuim::get_cursor() {
 }
 
 inline void tuim::gotoxy(vec2 pos) {
+    context* ctx = get_context();
     printf("\033[%d;%dH", pos.y, pos.x);
     tuim::set_cursor(pos);
 }
@@ -538,17 +602,39 @@ inline void tuim::hide_user_inputs() {
     #endif
 }
 
+inline tuim::color::color tuim::get_current_foreground() {
+    context* ctx = get_context();
+    return ctx->foreground_color;
+}
+
+inline tuim::color::color tuim::get_current_background() {
+    context* ctx = get_context();
+    return ctx->background_color;
+}
+
+inline std::vector<tuim::font::mode> tuim::get_current_modes() {
+    context* ctx = get_context();
+    std::vector<font::mode> modes;
+    for(auto[mode, b] : ctx->style_modes) {
+        if(b) modes.push_back(mode);
+    }
+    return modes;
+}
+
 inline void tuim::new_line() {
     print_to_screen("\n");
 }
 
 inline void tuim::clear() {
     // Reset style, clear screen and move to home position
-    printf("\033[0m\033[2J\033[3J\033[H");
+    // printf("\033[0m\033[2J\033[3J\033[H");
+    printf("\033[0m\033[H");
     ctx->style_modes.clear();
     ctx->margins_stack.clear();
     ctx->pressed_key = tuim::keyboard::NONE;
     set_cursor({1, 1});
+
+    ctx->current_frame = {ctx->current_frame.size};
 }
 
 inline void tuim::clear_line() {
@@ -566,11 +652,15 @@ inline void tuim::print_to_screen(std::string str) {
         // and take into account the current margin
         if(str.at(i) == '\n') {
             ctx->cursor = { (int) get_active_margin(), ctx->cursor.y+1};
+            
             if(ctx->cursor.x > 1) {
                 std::string margin = "\033[" + std::to_string(ctx->cursor.x) + "G";
                 str = str.substr(0, i+1) + margin + str.substr(i+1, str.length());
                 i += margin.length();
             }
+        }
+        else if(str.at(i) == TUIM_STYLE_CODE) {
+            
         }
         // ANSI Escape sequences are not displayed in the terminal
         // So we don't move the cursor when changing color or mode
@@ -581,12 +671,17 @@ inline void tuim::print_to_screen(std::string str) {
             } while(i < str.length() && !((str.at(i) >= 'a' && str.at(i) <= 'z') || (str.at(i) >= 'A' && str.at(i) <= 'Z')));
         }
         // Other character only take one "space"
-        else ctx->cursor.x++;
+        else {
+            uint32_t index = ctx->current_frame.get_index(ctx->cursor);
+            screen::character ch = {str.substr(i, l), get_current_foreground(), get_current_background(), get_current_modes()};
+            ctx->current_frame.set_character(index, ch);
+            ctx->cursor.x++;
+        }
 
         i += l;
     }
     update_container();
-    printf("%s", str.c_str());
+    // printf("%s", str.c_str());
 }
 
 template<typename ... Args>
@@ -600,7 +695,7 @@ inline void tuim::print(const char* fmt, Args ... args) {
     std::string parsed = std::string( buf.get(), buf.get() + size - 1);
 
     // Replace the style tags by their ANSI equivalent
-    parsed = tuim::string::parse_styles(parsed);
+    // parsed = tuim::string::parse_styles(parsed);
 
     print_to_screen(parsed);
 
@@ -763,7 +858,52 @@ inline void tuim::update(tuim::keyboard::keycode key) {
 }
 
 inline void tuim::display() {
+    context* ctx = get_context();
+    screen::buffer& last_frame = ctx->last_frame;
+    screen::buffer& current_frame = ctx->current_frame;
 
+    color::color foreground = {255,255,255,false};
+    color::color background = {0,0,0,true};
+    vec2 cursor = {0,0};
+    vec2 last_cursor = {-1,0};
+    uint32_t max_index = current_frame.size.x + current_frame.size.x*current_frame.size.y;
+
+    for(uint32_t index = 0; index < max_index; index++) {
+        if(current_frame.buffer.count(index)) {
+            if(last_frame.buffer.count(index)) {
+                screen::character& ch = current_frame.get_character(index);
+                if(!last_frame.is_character(index, ch)) {
+                    if(last_cursor.x != cursor.x-1 || last_cursor.y != cursor.y)
+                        printf("\033[%d;%dH", cursor.y, cursor.x);
+                    if(foreground != ch.foreground) {
+                        printf(color::to_ansi(ch.foreground).c_str());
+                        foreground = ch.foreground;
+                    }
+                    if(background != ch.background) {
+                        printf(color::to_ansi(ch.background).c_str());
+                        background = ch.background;
+                    }
+                    printf(ch.str.c_str());
+                    last_cursor = cursor;
+                }
+            }    
+        }
+        else {
+            if(last_frame.buffer.count(index)) {
+                printf("\033[%d;%dH", cursor.y, cursor.x);
+                printf("\033[0m ");
+            }
+        }
+
+        cursor.x++;
+        if(cursor.x >= current_frame.size.x) {
+            cursor.x = 0;
+            cursor.y++;
+        }
+    }
+    printf("\033[%d;%dH", cursor.y+1, 0);
+    printf("\033[0J");
+    ctx->last_frame = ctx->current_frame;
 }
 
 inline int tuim::calc_text_width(const std::string &str, int padding) {
@@ -1775,6 +1915,85 @@ inline bool tuim::string::is_vowel(uint32_t code) {
         return true;
 
     return false;
+}
+
+/***********************************************************
+*                     SCREEN BUFFER                        *
+***********************************************************/
+
+inline tuim::vec2 tuim::screen::buffer::get_position(uint32_t index) {
+    return vec2{index % size.x, (int) floor((float) index / (float) size.y)};
+}
+
+inline uint32_t tuim::screen::buffer::get_index(const vec2& pos) {
+    return pos.x + pos.y * size.x;
+}
+
+inline bool tuim::screen::buffer::is_in_buffer(uint32_t index) {
+    return index <= (size.x+size.x*size.y);
+}
+
+inline bool tuim::screen::buffer::is_character(uint32_t index, const character& ch) {
+    return buffer.at(index) == ch;
+}
+
+inline tuim::screen::character& tuim::screen::buffer::get_character(uint32_t index) {
+    return buffer.at(index);
+}
+
+inline void tuim::screen::buffer::set_character(uint32_t index, character ch) {
+    uint32_t max_index = size.x + size.x * size.y;
+    // Resize vertically if index out of bounds (add new lines)
+    if(index > max_index) {
+        resize(vec2{size.x, size.y + ceil((max_index - index)/size.x)});
+    }
+    buffer.emplace(index, ch);
+}
+
+inline void tuim::screen::buffer::resize(const vec2& new_size) {
+    uint32_t max_index = (size.x + size.x * size.y) - 1;
+
+    // Handle height increase
+    if(size.y < new_size.y) {
+        size.y = new_size.y;
+    }
+    // Handle height decrease (cut)
+    else {
+        uint32_t diff = size.y - new_size.y;
+        for(uint32_t i = max_index; i > max_index-(diff*size.x); i--) {
+            buffer.erase(i);
+        }
+    }
+
+    // Handle width increase
+    if(size.x < new_size.x) {
+        uint32_t diff = new_size.x - size.x;
+        for(uint32_t i = max_index; i > size.x; i--) {
+            if(buffer.count(i) == 0)
+                continue;
+            vec2 pos = get_position(i);
+            pos.y += pos.y * diff;
+            uint32_t new_index = get_index(pos);
+            buffer.emplace(new_index, buffer.at(i));
+            buffer.erase(i);
+        }
+    }
+    // Handle width decrease (cut)
+    else {
+        uint32_t diff = size.x - new_size.x;
+        for(uint32_t i = 0; i < max_index; i += size.x) {
+            if(i > 0) {
+                for(uint32_t j = i; j < i + new_size.x; j++) {
+                    buffer.emplace(j-diff, buffer.at(j));
+                    buffer.erase(j);
+                }
+            }
+            for(uint32_t j = i+new_size.x; j < i + size.x; j++) {
+                buffer.erase(i);
+            }
+        }
+    }
+    size = new_size;
 }
 
 /***********************************************************
