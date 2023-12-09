@@ -49,8 +49,9 @@ namespace tuim {
 ***********************************************************/
 
 #define TUIM_STYLE_CODE '&'
+#define TUIM_STYLE_ESCAPE '/'
+#define TUIM_COLOR_CODE '#'
 #define TUIM_COLOR_BACKGROUND '_'
-#define TUIM_COLOR_CUSTOM '#'
 
 #define TUIM_MAKE_KEY2(a, b) (b<<8) + c
 #define TUIM_MAKE_KEY3(a, b, c) (a<<16) + (b<<8) + c
@@ -247,6 +248,136 @@ namespace tuim {
     };
 
     /***********************************************************
+    *                    WINDOW FUNCTIONS                      *
+    ***********************************************************/
+
+    void init(int argc, char* argv[]); // Initialize tuim with command line arguments
+    void create_context(); // Create the global gui context
+    void delete_context(); // Delete the global gui context
+    context* get_context(); // Get tuim user interface global context
+
+    vec2 get_window_size(); // Get the terminal window size (columns,rows)
+    void set_title(std::string title); // Set terminal title
+
+    void set_cursor(vec2 pos); // Change tuim global cursor
+    vec2 get_cursor(); // Get terminal cursor position
+    void gotoxy(vec2 pos); // Move cursor
+    void set_cursor_visible(bool cursor); // Set the terminal cursor visible
+    bool is_cursor_visible(); // Get the cursor visibility
+    
+    void show_user_inputs(); // Enable displaying of user inputs
+    void hide_user_inputs(); // Hide user inputs
+
+    color::color get_current_foreground();
+    color::color get_current_background();
+    std::vector<font::mode> get_current_modes();
+
+    void new_line(); // Break to a new line
+    void clear(); // Clear terminal output
+    void clear_line(); // Clear terminal output
+    void print_to_screen(std::string str); // Print text to screen and reset style
+    template<typename ... Args> void print(const char* fmt, Args ... args); // Format text for printing to screen
+    void update(tuim::keyboard::keycode key); // Update the items
+    void display(); // Display screen
+
+    /***********************************************************
+    *                     ITEMS FUNCTIONS                      *
+    ***********************************************************/
+
+    item_id str_to_id(const std::string &str); // Hash a string to get an item id
+    item_id get_id(); // Get the id of the current item
+    uint32_t get_index(tuim::item_id id); // Get the index of a specific item
+    uint32_t get_hovered_index(); // Get the index of the hovered item
+
+    bool was_item_active(); // Return true if the last pushed item was active on previous tick
+    bool is_item_active(); // Determine if last pushed item is active
+    bool is_item_hovered(); // Determine if last pushed item is hovered
+    bool is_pressed(tuim::keyboard::key key); // Determine if a specified key has been pressed
+    bool is_pressed(tuim::keyboard::keycode code); // Determine if a specified keycode has been pressed
+    bool is_pressed(const char* c); // Determine if a specified character has been pressed
+    bool has_hoverable(); // Determine if an hoverable item has been pushed
+
+    void set_active_id(item_id id); // Set an item as active
+    void set_hovered_id(item_id id); // Set an item as hovered
+
+    void add_item(item item); // Push a new item
+    void remove_item(item_id id); // Remove an item
+
+    int calc_text_width(const std::string &str, int padding = 0); // Compute a text width with padding
+    int calc_text_vector_width(const std::vector<std::string> &str, int padding = 0); // Compute the max width of strings in a vector
+    std::vector<int> calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding = 0); // Compute the max width for each columns
+
+    vec2 calc_relative_position(); // Calculate the coordinates from which to start drawing an item
+
+    /***********************************************************
+    *                    COMPONENTS/ITEMS                      *
+    ***********************************************************/
+
+    void text(const std::string& id, const std::string& text); // Display text
+    void text(const std::string& text); // Display text
+    void hr(int length); // Display horizontal bar
+    void paragraph(const std::string& id, const std::string& text, unsigned int width); // Display paragraph with automatic line breaks and word spacing
+    bool button(const std::string& id, const std::string& text, button_flags flags = BUTTON_FLAGS_NONE); // Display a button
+    template <typename T> bool slider(const std::string& id, T* value, T min, T max, T step); // Display a number slider
+    template <typename T> bool input_number(const std::string& id, const std::string& text, T* value, T min, T max, T step); // Display a input for numbers
+    template <typename U> bool input_enum(const std::string& id, const std::string& text, U* value, int max, const std::map<U, std::string>& labels); // Display a input for enums
+    bool input_bool(const std::string& id, const std::string& text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); // Display a input for booleans
+    bool input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags = INPUT_TEXT_FLAGS_NONE); // Display a input for string
+    bool checkbox(const std::string& id, const std::string& text, bool* value); // Display checkbox
+    void animation(const std::string& id, int* current, float speed, const std::vector<std::string>& frames); // Display animated frames
+    void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); // Display a navigable table
+
+    /***********************************************************
+    *                    STYLE FUNCTIONS                       *
+    ***********************************************************/
+
+    void push_margin(uint32_t margin); // Push a new horizontal margin
+    void pop_margin(); // Pop current horizontal margin
+    uint32_t get_active_margin(); // Get current horizontal margin
+
+    /***********************************************************
+    *                   CONTAINERS FUNCTIONS                   *
+    ***********************************************************/
+
+    container& get_container();
+    void update_container();
+    void move_container_cursor(vec2 pos);
+    
+    void start_container();
+    void end_container();
+
+    void start_column();
+    void end_column();
+
+    /***********************************************************
+    *                   INTERNAL FUNCTIONS                     *
+    ***********************************************************/
+
+    namespace impl {
+        void open_terminal(); // Restart program in a separate terminal
+        void add_printing_info(const std::string &str); // Log a printing into the stack
+    }
+
+    /***********************************************************
+    *                    STRING FUNCTIONS                      *
+    ***********************************************************/
+
+    namespace string {
+        size_t length(const std::string& str); // Get number of characters in string
+        std::string fill(const std::string& str, size_t length); // Get a duplicate of a string
+        bool is_style(const std::string& str, size_t pos); // Check if there is a style tag in a string
+        std::pair<font::style, size_t> extract_style(const std::string& str, size_t pos); // Extract a style from a string
+        std::string escape_styles(const std::string& str); // Escape style tags in string
+        uint32_t utf8_to_int(const std::string& c); // Get the codepoint of a utf8 character (as string)
+        std::string int_to_utf8(uint32_t code); // Convert a utf8 codepoint to a string
+        bool is_printable(uint32_t code); // Check if a utf8 character is printable
+        size_t char_length(char c); // Get length (in bytes) of a utf8 character
+        uint32_t to_lowercase(uint32_t code); // Get lowercase of utf8 chararcter
+        bool is_alphanumeric(uint32_t code); // Check if utf8 character is a letter or number
+        bool is_vowel(uint32_t code); // Check if utf8 character is a vowel
+    }
+
+    /***********************************************************
     *                    SCREEN BUFFER                         *
     ***********************************************************/
     
@@ -371,136 +502,6 @@ namespace tuim {
     ***********************************************************/
 
     inline context* ctx; // Global context variable for the gui
-
-    /***********************************************************
-    *                    WINDOW FUNCTIONS                      *
-    ***********************************************************/
-
-    void init(int argc, char* argv[]); // Initialize tuim with command line arguments
-    void create_context(); // Create the global gui context
-    void delete_context(); // Delete the global gui context
-    context* get_context(); // Get tuim user interface global context
-
-    vec2 get_window_size(); // Get the terminal window size (columns,rows)
-    void set_title(std::string title); // Set terminal title
-
-    void set_cursor(vec2 pos); // Change tuim global cursor
-    vec2 get_cursor(); // Get terminal cursor position
-    void gotoxy(vec2 pos); // Move cursor
-    void set_cursor_visible(bool cursor); // Set the terminal cursor visible
-    bool is_cursor_visible(); // Get the cursor visibility
-    
-    void show_user_inputs(); // Enable displaying of user inputs
-    void hide_user_inputs(); // Hide user inputs
-
-    color::color get_current_foreground();
-    color::color get_current_background();
-    std::vector<font::mode> get_current_modes();
-
-    void new_line(); // Break to a new line
-    void clear(); // Clear terminal output
-    void clear_line(); // Clear terminal output
-    void print_to_screen(std::string str); // Print text to screen and reset style
-    template<typename ... Args> void print(const char* fmt, Args ... args); // Format text for printing to screen
-    void update(tuim::keyboard::keycode key); // Update the items
-    void display(); // Display screen
-
-    /***********************************************************
-    *                     ITEMS FUNCTIONS                      *
-    ***********************************************************/
-
-    item_id str_to_id(const std::string &str); // Hash a string to get an item id
-    item_id get_id(); // Get the id of the current item
-    uint32_t get_index(tuim::item_id id); // Get the index of a specific item
-    uint32_t get_hovered_index(); // Get the index of the hovered item
-
-    bool was_item_active(); // Return true if the last pushed item was active on previous tick
-    bool is_item_active(); // Determine if last pushed item is active
-    bool is_item_hovered(); // Determine if last pushed item is hovered
-    bool is_pressed(tuim::keyboard::key key); // Determine if a specified key has been pressed
-    bool is_pressed(tuim::keyboard::keycode code); // Determine if a specified keycode has been pressed
-    bool is_pressed(const char* c); // Determine if a specified character has been pressed
-    bool has_hoverable(); // Determine if an hoverable item has been pushed
-
-    void set_active_id(item_id id); // Set an item as active
-    void set_hovered_id(item_id id); // Set an item as hovered
-
-    void add_item(item item); // Push a new item
-    void remove_item(item_id id); // Remove an item
-
-    int calc_text_width(const std::string &str, int padding = 0); // Compute a text width with padding
-    int calc_text_vector_width(const std::vector<std::string> &str, int padding = 0); // Compute the max width of strings in a vector
-    std::vector<int> calc_columns_width(const std::vector<std::string> &columns, const std::vector<std::vector<std::string>> &rows, int padding = 0); // Compute the max width for each columns
-
-    vec2 calc_relative_position(); // Calculate the coordinates from which to start drawing an item
-
-    /***********************************************************
-    *                    COMPONENTS/ITEMS                      *
-    ***********************************************************/
-
-    void text(const std::string& id, const std::string& text); // Display text
-    void text(const std::string& text); // Display text
-    void hr(int length); // Display horizontal bar
-    void paragraph(const std::string& id, const std::string& text, unsigned int width); // Display paragraph with automatic line breaks and word spacing
-    bool button(const std::string& id, const std::string& text, button_flags flags = BUTTON_FLAGS_NONE); // Display a button
-    template <typename T> bool slider(const std::string& id, T* value, T min, T max, T step); // Display a number slider
-    template <typename T> bool input_number(const std::string& id, const std::string& text, T* value, T min, T max, T step); // Display a input for numbers
-    template <typename U> bool input_enum(const std::string& id, const std::string& text, U* value, int max, const std::map<U, std::string>& labels); // Display a input for enums
-    bool input_bool(const std::string& id, const std::string& text, bool* value, const std::map<bool, std::string>& labels = {{false, "False"}, {true, "True"}}); // Display a input for booleans
-    bool input_text(const std::string& id, std::string* value, const std::string& default_value, input_text_flags flags = INPUT_TEXT_FLAGS_NONE); // Display a input for string
-    bool checkbox(const std::string& id, const std::string& text, bool* value); // Display checkbox
-    void animation(const std::string& id, int* current, float speed, const std::vector<std::string>& frames); // Display animated frames
-    void scroll_table(const char* id, int *cursor, int *key, std::vector<std::string> &columns, std::vector<std::vector<std::string>> &rows, int height, int padding); // Display a navigable table
-
-    /***********************************************************
-    *                    STYLE FUNCTIONS                       *
-    ***********************************************************/
-
-    void push_margin(uint32_t margin); // Push a new horizontal margin
-    void pop_margin(); // Pop current horizontal margin
-    uint32_t get_active_margin(); // Get current horizontal margin
-
-    /***********************************************************
-    *                   CONTAINERS FUNCTIONS                   *
-    ***********************************************************/
-
-    container& get_container();
-    void update_container();
-    void move_container_cursor(vec2 pos);
-    
-    void start_container();
-    void end_container();
-
-    void start_column();
-    void end_column();
-
-    /***********************************************************
-    *                   INTERNAL FUNCTIONS                     *
-    ***********************************************************/
-
-    namespace impl {
-        void open_terminal(); // Restart program in a separate terminal
-        void add_printing_info(const std::string &str); // Log a printing into the stack
-    }
-
-    /***********************************************************
-    *                    STRING FUNCTIONS                      *
-    ***********************************************************/
-
-    namespace string {
-        size_t length(const std::string& str); // Get number of characters in string
-        std::string fill(const std::string& str, size_t length); // Get a duplicate of a string
-        std::string parse_styles(const std::string& str); // Replace style codes with ansi escape sequences
-        std::string escape_styles(const std::string& str); // Escape style tags in string
-        uint32_t utf8_to_int(const std::string& c); // Get the codepoint of a utf8 character (as string)
-        std::string int_to_utf8(uint32_t code); // Convert a utf8 codepoint to a string
-        bool is_printable(uint32_t code); // Check if a utf8 character is printable
-        size_t char_length(char c); // Get length (in bytes) of a utf8 character
-        uint32_t to_lowercase(uint32_t code); // Get lowercase of utf8 chararcter
-        bool is_alphanumeric(uint32_t code); // Check if utf8 character is a letter or number
-        bool is_vowel(uint32_t code); // Check if utf8 character is a vowel
-    }
-
 }
 
 /***********************************************************
@@ -659,9 +660,30 @@ inline void tuim::print_to_screen(std::string str) {
                 i += margin.length();
             }
         }
-        else if(str.at(i) == TUIM_STYLE_CODE) {
-            
+        
+        // Check if there is a style tag at this index
+        font::style style;
+        size_t style_length = 0;
+        std::tie(style, style_length) = string::extract_style(str, i);
+        if(style_length > 1) {
+            switch(style.type) {
+                case font::style_type::COLOR:
+                    if(style.style_color.background)
+                        ctx->background_color = style.style_color;
+                    else
+                        ctx->foreground_color = style.style_color;
+                    break;
+                case font::style_type::MODE:
+                    if(ctx->style_modes.count(style.style_mode))
+                        ctx->style_modes.erase(style.style_mode);
+                    else
+                        ctx->style_modes.emplace(style.style_mode, true);
+                    if(style.style_mode == font::mode::RESET)
+                        ctx->style_modes.clear();
+                    break;
+            }
         }
+
         // ANSI Escape sequences are not displayed in the terminal
         // So we don't move the cursor when changing color or mode
         // Note: Escape sequences related to the cursor are not checked yet
@@ -911,10 +933,8 @@ inline int tuim::calc_text_width(const std::string &str, int padding) {
     // Remove ANSI Escape sequences because they are not displayed
     static const std::string pattern = "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))";
     static const std::regex regex(pattern);
-    std::string stripped = std::regex_replace(tuim::string::parse_styles(str), regex, "");
-
+    std::string stripped = std::regex_replace(str, regex, ""); // TODO: strip style tags
     int width = tuim::string::length(stripped) + padding*2;
-
     return width;
 }
 
@@ -1335,8 +1355,8 @@ inline bool tuim::input_text(const std::string& id, std::string* value, const st
         size_t l = tuim::string::char_length(value->at(i));
         std::string ch = value->substr(i, l);
 
-        if(tuim::is_item_active() && (ch.at(0) == TUIM_STYLE_CODE || ch.at(0) == TUIM_COLOR_CUSTOM))
-            ch = "\\" + ch;
+        if(tuim::is_item_active() && (ch.at(0) == TUIM_STYLE_CODE || ch.at(0) == TUIM_COLOR_CODE))
+            ch = TUIM_STYLE_ESCAPE + ch;
 
         if(tuim::is_item_active() && !tuim::keyboard::is_pressed() && cursor == i) {
             if(ch == "\n") ch = " \n";
@@ -1660,160 +1680,97 @@ inline std::string tuim::string::fill(const std::string &str, size_t length) {
     return res;
 }
 
-inline std::string tuim::string::parse_styles(const std::string &str) {
+bool tuim::string::is_style(const std::string& str, size_t pos) {
+    if(pos > 0 && str.at(pos-1) == TUIM_STYLE_ESCAPE)
+        return false;
+    return str.at(pos) == TUIM_STYLE_CODE || str.at(pos) == TUIM_COLOR_CODE;
+}
+
+std::pair<tuim::font::style, size_t> tuim::string::extract_style(const std::string& str, size_t pos) {
     context* ctx = get_context();
-    bool escaped = false;
-    std::string parsed = "";
+    font::style style;
+    size_t style_length = 0;
+    std::string code = "";
+    bool is_background = false;
+    bool is_valid = true;
 
-    for(size_t i = 0; i < str.length(); i++) {
-
-        // Skip if character is escaped
-        if(escaped) {
-            // Add an anti-slash there was not any color code to escape
-            if(str[i] != TUIM_STYLE_CODE && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') parsed += "\\";
-
-            parsed += str[i];
-            escaped = false;
-            continue;
-        }
-
-        if(str[i] == '\\') {
-            escaped = true;
-            continue;
-        }
-
-        if(str[i] == TUIM_STYLE_CODE) {
-            bool background = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND);
-            size_t code_length = background ? 2 : 1;
-            if(str.length() - i < code_length)
-                goto end;
-
-            std::string raw_code = str.substr(i + 1 + background, 1);
-            std::string code = str.substr(i + 1, code_length);
-
-            if(ctx->style_codes.count(raw_code) == 0)
-                goto end;
-
-            font::style style = ctx->style_codes.at(raw_code);
-
-            switch(style.type) {
-                case font::style_type::COLOR: {
-                    color::color color = color::from_code(code);
-                    parsed += color::to_ansi(color);
-                }
-                    break;
-                case font::style_type::MODE:
-                    code = raw_code;
-                    bool enabled = true;
-                    font::mode mode = font::from_code(code);
-                    if(ctx->style_modes.count(mode))
-                    {
-                        enabled = false;
-                        ctx->style_modes.erase(mode);
-                    }
-                    else
-                    {
-                        ctx->style_modes.emplace(mode, true);
-                    }
-                    if(mode == font::mode::RESET)
-                        ctx->style_modes.clear(); // TODO: move this to print
-                    parsed += font::to_ansi(mode, enabled);
-                    break;
-            }
-            
-            i += code_length;
-            continue;
-        }
-
-        if(str[i] == TUIM_COLOR_CUSTOM) {
-            size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 7 : 6;
-            if(str.length() - i < code_length)
-                goto end;
-
-            std::string code = str.substr(i + 1, code_length);
-            bool is_hex = true;
-
-            for(size_t i = 0; i < code.length(); i += tuim::string::char_length(code.at(i))) {
-                if(i == 0 && code.at(i) == TUIM_COLOR_BACKGROUND) continue;
-                if((code.at(i) < '0' || code.at(i) > '9') && (code.at(i) < 'a' || code.at(i) > 'f')) {
-                    is_hex = false;
-                    break;
-                }
-            }
-            if(!is_hex)
-                goto end;
-
-            tuim::color::color color = tuim::color::from_hex(code);
-            parsed += tuim::color::to_ansi(color);
-
-            i += code_length;
-            continue;
-        }
-
-        end:
-        parsed += str[i];
+    if(pos >= str.length() || pos == str.length()-1) {
+        is_valid = false;
+        goto End;
     }
+    if(pos > 0 && str.at(pos-1) == TUIM_STYLE_ESCAPE)
+        goto End;
+    
+    is_background = (str.at(pos+1) == TUIM_COLOR_BACKGROUND);
+    if(str.at(pos) == TUIM_STYLE_CODE) {
+        // Extract the style tag from the string
+        for(size_t i = pos+1+is_background; i < str.length();) {
+            size_t ch_length = tuim::string::char_length(str.at(i));
+            std::string ch = str.substr(i, ch_length);
+            
+            // Temporarily hard limit of 7 characters for style tag
+            // Later, we could keep track of the longest style tag and stop at that length
+            if(ch == ";" || code.length() == 7)
+                break;
 
-    return parsed;
+            code += ch;
+            i += ch_length;
+        }
+        // Check if the style tag exists
+        // The longest tag matching with what has been extracted is kept
+        // We pop_back the code until empty or the tag exists
+        while(code.empty()) {
+            if(ctx->style_codes.count(code)) {
+                break;
+            }
+            code.pop_back();
+        }
+        if(code.empty()) {
+            is_valid = false;
+            goto End;
+        }
+        style = ctx->style_codes.at(code);
+    }
+    else if(str.at(pos) == TUIM_COLOR_CODE) {
+        // Extract the color hex from the string
+        for(size_t i = pos+1+is_background; i < str.length();) {
+            size_t ch_length = tuim::string::char_length(str.at(i));
+            std::string ch = str.substr(i, ch_length);
+            
+            if(ch == ";" || code.length() == 6 || ch_length > 1)
+                break;
+            if((ch.at(0) < 'a' || ch.at(0) > 'f') && (ch.at(0) < 'A' || ch.at(0) > 'F') && (ch.at(0) < '0' || ch.at(0) < '9'))
+                break;
+
+            code += ch;
+            i += ch_length;
+        }
+        // Skip if it is not a valid hex value
+        if(code.length() != 6) {
+            code = "";
+            is_valid = false;
+            goto End;
+        }
+        style.type = font::style_type::COLOR;
+        style.style_color = color::from_hex(code);
+    }
+End:
+    if(style.type == font::style_type::COLOR)
+        style.style_color.background = is_background;
+    // Include identifiers (&,#,_) and the semicolon following the style tag
+    style_length = is_background + code.length() + is_valid * (1 + (pos+code.length() < str.length() && str.at(pos+code.length()) == ';'));
+    return {style, style_length};
 }
 
 inline std::string tuim::string::escape_styles(const std::string& str) {
-    bool escaped = false;
     std::string parsed = "";
-
-    for(size_t i = 0; i < str.length(); i++) {
-
-        if(escaped) {
-            // Add an anti-slash if there was not any color code to escape
-            if(str[i] != TUIM_STYLE_CODE && str[i] != TUIM_COLOR_CUSTOM && str[i] != '\\') parsed += "\\";
-            parsed += str[i];
-            escaped = false;
-            continue;
-        }
-
-        if(str[i] == '\\') {
-            escaped = true;
-            continue;
-        }
-
-        if(str[i] == TUIM_STYLE_CODE) {
-            bool background = (str.length() - i > 2 && str[i+1] == TUIM_COLOR_BACKGROUND);
-            size_t code_length = background ? 3 : 2;
-            if(str.length() - i < code_length) {
-                parsed += str[i];
-                continue;
-            }
-
-            std::string raw_code = str.substr(i + 1 + background, 1);
-            std::string code = str.substr(i, code_length);
-
-            if(ctx->style_codes.count(raw_code) == 0)
-            {
-                parsed += str[i];
-                continue;
-            }
-
-            parsed += "\\" + code;
-            continue;
-        }
-
-        if(str[i] == TUIM_COLOR_CUSTOM) {
-            size_t code_length = (str.length() - i > 6 && str[i+1] == TUIM_COLOR_BACKGROUND) ? 8 : 7;
-            if(str.length() - i < code_length) {
-                parsed += str[i];
-                continue;
-            }
-
-            std::string code = str.substr(i, code_length);
-            parsed += "\\" + str[i] + code;
-
-            i += code_length;
-            continue;
-        }
-
-        parsed += str[i];
+    for(size_t i = 0; i < str.length();) {
+        size_t length = extract_style(str, i).second;
+        if(length > 1)
+            parsed += TUIM_STYLE_ESCAPE;
+        parsed += str.substr(i, length);
+        i += length + string::char_length(str.at(i));
     }
-
     return parsed;
 }
 
@@ -1922,7 +1879,7 @@ inline bool tuim::string::is_vowel(uint32_t code) {
 ***********************************************************/
 
 inline tuim::vec2 tuim::screen::buffer::get_position(uint32_t index) {
-    return vec2{index % size.x, (int) floor((float) index / (float) size.y)};
+    return vec2{(int) index % size.x, (int) floor((float) index / (float) size.y)};
 }
 
 inline uint32_t tuim::screen::buffer::get_index(const vec2& pos) {
@@ -1945,7 +1902,7 @@ inline void tuim::screen::buffer::set_character(uint32_t index, character ch) {
     uint32_t max_index = size.x + size.x * size.y;
     // Resize vertically if index out of bounds (add new lines)
     if(index > max_index) {
-        resize(vec2{size.x, size.y + ceil((max_index - index)/size.x)});
+        resize(vec2{(int) size.x, (int)(size.y + ceil((max_index - index)/size.x))});
     }
     buffer.emplace(index, ch);
 }
