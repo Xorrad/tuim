@@ -6,9 +6,7 @@
 int main(int argc, char* argv[])
 {    
     tuim::init(argc, argv);
-    tuim::set_title("tuim demo");
-
-    tuim::set_cursor_visible(false);
+    tuim::set_title("tuim - buttons");
 
     tuim::keyboard::keycode key;
     int a = 0;
@@ -19,13 +17,11 @@ int main(int argc, char* argv[])
         if(a < 2) {
             a++;
         } else {
-            // key = getch();
             key = tuim::keyboard::get_pressed();
             a = 1;
         }
 
         tuim::clear();
-        
         tuim::update(key);
 
         tuim::button("#b0", "test2\n");
@@ -40,13 +36,12 @@ int main(int argc, char* argv[])
             tuim::print(" "); tuim::button("#b1.1", "sounds\n");
             tuim::print(" "); tuim::button("#b1.2", "keybinds\n");
         }
-
         if(tuim::button("#b3", "exit\n"))
             break;
 
-        // usleep(1000 * 100);
+        tuim::display();
 
-    } while(key != tuim::keyboard::ESCAPE);
+    } while(key != tuim::keyboard::F1);
 
     tuim::delete_context();
 

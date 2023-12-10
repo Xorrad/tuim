@@ -17,9 +17,7 @@ int main(int argc, char* argv[])
     setlocale(LC_ALL, "");
 
     tuim::init(argc, argv);
-    tuim::set_title("tuim demo");
-
-    tuim::set_cursor_visible(false);
+    tuim::set_title("tuim - inputs");
 
     tuim::keyboard::keycode key;
     tuim::keyboard::keycode last_key;
@@ -42,7 +40,6 @@ int main(int argc, char* argv[])
         }
 
         tuim::clear();
-        
         tuim::update(key);
 
         tuim::print("value1: %d\n", value1);
@@ -76,7 +73,9 @@ int main(int argc, char* argv[])
         tuim::checkbox("#c1", "value5: %s", &value5);
 
         tuim::print("\n\nPress F1 to exit.");
-        
+
+        tuim::display();
+
     } while(key != tuim::keyboard::F1);
 
     tuim::delete_context();

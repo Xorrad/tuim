@@ -3,8 +3,7 @@
 int main(int argc, char* argv[])
 {    
     tuim::init(argc, argv);
-    tuim::set_title("tuim demo");
-    tuim::set_cursor_visible(false);
+    tuim::set_title("tuim - texts");
 
     tuim::font::register_style("c", tuim::font::make_style(tuim::color::from_hex(0x888888)));
 
@@ -13,6 +12,7 @@ int main(int argc, char* argv[])
 
     do {
         tuim::clear();
+        tuim::update(key);
 
         tuim::text("normal\n");
         tuim::text("&bbold&r\n");
@@ -35,10 +35,11 @@ int main(int argc, char* argv[])
 
         tuim::print("\n\nPress F1 to exit.");
 
+        tuim::display();
+
         key = tuim::keyboard::get_pressed();
         if(key == tuim::keyboard::LEFT) paragraph_width = std::max(1, paragraph_width-1);
         else if(key == tuim::keyboard::RIGHT) paragraph_width++;
-        
     } while(key != tuim::keyboard::F1);
 
     tuim::delete_context();
