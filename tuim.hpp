@@ -539,15 +539,16 @@ inline void tuim::init(int argc, char* argv[]) {
 
 inline void tuim::create_context() {
     printf("\033[?1049h"); // enable alternate buffer
-    tuim::native::hide_user_inputs();
     tuim::ctx = new tuim::context();
+    tuim::native::hide_user_inputs();
+    tuim::native::set_cursor_visible(false);
     tuim::reset_styles();
 }
 
 inline void tuim::delete_context() {
-    tuim::native::set_cursor_visible(true);
     printf("\033[?1049l"); // disabled alternate buffer
     tuim::native::show_user_inputs();
+    tuim::native::set_cursor_visible(true);
     delete tuim::ctx;
 }
 
@@ -561,6 +562,8 @@ void tuim::set_title(std::string title) {
 }
 
 void tuim::set_cursor_visible(bool cursor) {
+    context* ctx = get_context();
+    ctx->cursor_visible = cursor;
     tuim::native::set_cursor_visible(cursor);
 }
 
@@ -615,7 +618,7 @@ inline void tuim::clear() {
 
 inline void tuim::clear_line() {
     context* ctx = get_context();
-    ctx->cursor = {0, ctx->cursor.y};
+    ctx->cursor = {1, ctx->cursor.y};
     ctx->current_frame.clear_line(ctx->cursor.y);
 }
 
@@ -625,17 +628,6 @@ inline void tuim::print_to_screen(std::string str) {
     // We read the string and move the global cursor accordingly
     for(size_t i = 0; i < str.length();) {
         size_t l = tuim::string::char_length(str.at(i));
-        // Move global cursor to next line when line break
-        // and take into account the current margin
-        if(str.at(i) == '\n') {
-            ctx->cursor = { (int) get_active_margin(), ctx->cursor.y+1};
-            
-            if(ctx->cursor.x > 1) {
-                std::string margin = "\033[" + std::to_string(ctx->cursor.x) + "G";
-                str = str.substr(0, i+1) + margin + str.substr(i+1, str.length());
-                i += margin.length();
-            }
-        }
         
         // Check if there is a style tag at this index
         font::style style;
@@ -667,6 +659,11 @@ inline void tuim::print_to_screen(std::string str) {
             continue;
         }
 
+        // Move global cursor to next line when line break
+        // and take into account the current margin
+        if(str.at(i) == '\n') {
+            tuim::new_line();
+        }
         // ANSI Escape sequences are not displayed in the terminal
         // So we don't move the cursor when changing color or mode
         // Note: Escape sequences related to the cursor are not checked yet
@@ -732,20 +729,15 @@ inline void tuim::display() {
             if(last_frame.buffer.count(index) == 0 || !last_frame.is_character(index, ch)) {
                 if(last_cursor.x != cursor.x-1 || last_cursor.y != cursor.y)
                     printf("\033[%d;%dH", cursor.y, cursor.x);
-                if(foreground != ch.foreground) {
-                    printf(color::to_ansi(ch.foreground).c_str());
-                    foreground = ch.foreground;
+                if(std::find(ch.modes.begin(), ch.modes.end(), font::mode::RESET) != ch.modes.end()) {
+                    printf(font::to_ansi(font::mode::RESET, true).c_str());
+                    foreground = {255,255,255,false};
+                    background = {0,0,0,true};
                 }
-                if(background != ch.background) {
-                    printf(color::to_ansi(ch.background).c_str());
-                    background = ch.background;
-                }
-                bool reset = false;
                 for(font::mode mode : ch.modes) {
-                    if(mode == font::mode::RESET) {
-                        reset = true;
+                    if(mode == font::mode::RESET)
                         continue;
-                    }
+
                     if(modes.count(mode) == 0) {
                         modes.emplace(mode, true);
                     }
@@ -754,11 +746,13 @@ inline void tuim::display() {
                     }
                     printf(font::to_ansi(mode, modes.at(mode)).c_str());
                 }
-                if(reset) {
-                    printf(font::to_ansi(font::mode::RESET, true).c_str());
-                    foreground = {255,255,255,false};
-                    background = {0,0,0,true};
-                    modes.clear();
+                if(foreground != ch.foreground) {
+                    printf(color::to_ansi(ch.foreground).c_str());
+                    foreground = ch.foreground;
+                }
+                if(background != ch.background) {
+                    printf(color::to_ansi(ch.background).c_str());
+                    background = ch.background;
                 }
                 // file << ch.str.c_str();
                 printf(ch.str.c_str());
@@ -823,8 +817,6 @@ void tuim::native::reset_styles() {
 }
 
 inline void tuim::native::set_cursor_visible(bool cursor) {
-    context* ctx = get_context();
-    ctx->cursor_visible = cursor;
     printf("\033[?25%c", (cursor ? 'h' : 'l'));
 }
 
@@ -1667,62 +1659,49 @@ inline void tuim::impl::add_printing_info(const std::string &str) {
 ***********************************************************/
 
 inline tuim::keyboard::keycode tuim::keyboard::get_pressed() {
-    #ifdef __linux__
-        int count = 0;
-        unsigned char codes[4] = { 0, 0, 0, 0 };
+    int count = 0;
+    unsigned char codes[4] = { 0, 0, 0, 0 };
 
-        // Loop for escaped characters
-        do {
-            char buf;
-            termios term;
-            fflush(stdout);
-            tcgetattr(0, &term);
-            term.c_lflag &= ~ICANON;
-            term.c_cc[VMIN] = 1;
-            term.c_cc[VTIME] = 0;
-            tcsetattr(0, TCSANOW, &term);
+    // Loop for escaped characters
+    do {
+        char buf;
+        termios term;
+        fflush(stdout);
+        tcgetattr(0, &term);
+        term.c_lflag &= ~ICANON;
+        term.c_cc[VMIN] = 1;
+        term.c_cc[VTIME] = 0;
+        tcsetattr(0, TCSANOW, &term);
 
-            read(0, &buf, 1);
+        read(0, &buf, 1);
 
-            term.c_lflag |= ICANON;
-            tcsetattr(0, TCSADRAIN, &term);
+        term.c_lflag |= ICANON;
+        tcsetattr(0, TCSADRAIN, &term);
 
-            codes[count] = (unsigned char) buf;
-            // printf("[%d] %d\n", count, codes[count]);
-            count++;
-        } while(tuim::keyboard::is_pressed() && count < 4);
+        codes[count] = (unsigned char) buf;
+        // printf("[%d] %d\n", count, codes[count]);
+        count++;
+    } while(tuim::keyboard::is_pressed() && count < 4);
 
-        // Get the final key code
-        tuim::keyboard::keycode code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + (codes[2] << (8*(count-3))) + codes[3];
-        return code;
-
-    #elif _WIN32
-
-    #else
-
-    #endif
+    // Get the final key code
+    tuim::keyboard::keycode code = (codes[0] << (8*(count-1))) + (codes[1] << (8*(count-2))) + (codes[2] << (8*(count-3))) + codes[3];
+    return code;
 }
 
 inline bool tuim::keyboard::is_pressed() {
-    #ifdef __linux__ 
-        termios term;
-        tcgetattr(0, &term);
-        term.c_lflag &= ~ICANON;
-        tcsetattr(0, TCSANOW, &term);
+    termios term;
+    tcgetattr(0, &term);
+    term.c_lflag &= ~ICANON;
+    tcsetattr(0, TCSANOW, &term);
 
-        int byteswaiting;
-        ioctl(0, FIONREAD, &byteswaiting);
+    int byteswaiting;
+    ioctl(0, FIONREAD, &byteswaiting);
 
-        tcgetattr(0, &term);
-        term.c_lflag |= ICANON;
-        tcsetattr(0, TCSANOW, &term);
+    tcgetattr(0, &term);
+    term.c_lflag |= ICANON;
+    tcsetattr(0, TCSANOW, &term);
 
-        return byteswaiting > 0;
-    #elif _WIN32
-        
-    #else
-
-    #endif
+    return byteswaiting > 0;
 }
 
 /***********************************************************
@@ -1956,9 +1935,9 @@ inline tuim::screen::character& tuim::screen::buffer::get_character(uint32_t ind
 inline void tuim::screen::buffer::set_character(uint32_t index, character ch) {
     uint32_t max_index = size.x + size.x * size.y;
     // Resize vertically if index out of bounds (add new lines)
-    if(index > max_index) {
-        resize(vec2{(int) size.x, (int)(size.y + ceil((max_index - index)/size.x))});
-    }
+    // if(index >= max_index) {
+    //     resize(vec2{(int) size.x, (int)(size.y + ceil((max_index - index)/size.x))});
+    // }
     buffer.emplace(index, ch);
 }
 
@@ -1986,7 +1965,7 @@ inline void tuim::screen::buffer::resize(const vec2& new_size) {
     // Handle width increase
     if(size.x < new_size.x) {
         uint32_t diff = new_size.x - size.x;
-        for(uint32_t i = max_index; i > size.x; i--) {
+        for(uint32_t i = max_index-1; i > size.x; i--) {
             if(buffer.count(i) == 0)
                 continue;
             vec2 pos = get_position(i);
@@ -2002,6 +1981,8 @@ inline void tuim::screen::buffer::resize(const vec2& new_size) {
         for(uint32_t i = 0; i < max_index; i += size.x) {
             if(i > 0) {
                 for(uint32_t j = i; j < i + new_size.x; j++) {
+                    if(buffer.count(j) == 0)
+                        continue;
                     buffer.emplace(j-diff, buffer.at(j));
                     buffer.erase(j);
                 }
