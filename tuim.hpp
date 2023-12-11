@@ -265,10 +265,10 @@ namespace tuim {
     vec2 get_cursor(); // Get cursor position
     void gotoxy(const vec2& pos); // Move cursor
 
-    color::color get_current_foreground();
-    color::color get_current_background();
-    std::vector<font::mode> get_current_modes();
-    void reset_styles();
+    color::color get_current_foreground(); // Get active foreground color
+    color::color get_current_background(); // Get active background color
+    std::vector<font::mode> get_current_modes(); // Get active modes
+    void reset_styles(); // Reset tuim styles
 
     void new_line(); // Break to a new line
     void clear(); // Clear terminal output
@@ -386,6 +386,7 @@ namespace tuim {
         std::string fill(const std::string& str, size_t length); // Get a duplicate of a string
         bool is_style(const std::string& str, size_t pos); // Check if there is a style tag in a string
         std::pair<font::style, size_t> extract_style(const std::string& str, size_t pos); // Extract a style from a string
+        std::string strip_styles(const std::string& str); // Remove all style tags from string
         std::string escape_styles(const std::string& str); // Escape style tags in string
         uint32_t utf8_to_int(const std::string& c); // Get the codepoint of a utf8 character (as string)
         std::string int_to_utf8(uint32_t code); // Convert a utf8 codepoint to a string
@@ -557,11 +558,11 @@ inline tuim::context* tuim::get_context() {
     return tuim::ctx;
 }
 
-void tuim::set_title(std::string title) {
+inline void tuim::set_title(std::string title) {
     tuim::native::set_title(title);
 }
 
-void tuim::set_cursor_visible(bool cursor) {
+inline void tuim::set_cursor_visible(bool cursor) {
     context* ctx = get_context();
     ctx->cursor_visible = cursor;
     tuim::native::set_cursor_visible(cursor);
@@ -797,22 +798,23 @@ inline void tuim::native::set_title(std::string title) {
     printf("\033]0;%s\007", title.c_str());
 }
 
-void tuim::native::new_line() {
+inline void tuim::native::new_line() {
     printf("\n");
 }
 
-void tuim::native::gotoxy(const vec2& pos) {
+inline void tuim::native::gotoxy(const vec2& pos) {
     printf("\033[%d;%dH", pos.y, pos.x);
 }
 
-void tuim::native::clear() {
+inline void tuim::native::clear() {
     printf("\033[2J\033[0m\033[H");
 }
-void tuim::native::clear_line() {
+
+inline void tuim::native::clear_line() {
     printf("\033[2K");
 }
 
-void tuim::native::reset_styles() {
+inline void tuim::native::reset_styles() {
     printf("\033[0m");
 }
 
@@ -993,9 +995,10 @@ inline void tuim::update(tuim::keyboard::keycode key) {
 inline int tuim::calc_text_width(const std::string &str, int padding) {
     // https://github.com/chalk/ansi-regex/blob/main/index.js
     // Remove ANSI Escape sequences because they are not displayed
-    static const std::string pattern = "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))";
-    static const std::regex regex(pattern);
-    std::string stripped = std::regex_replace(str, regex, ""); // TODO: strip style tags
+    // static const std::string pattern = "[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))";
+    // static const std::regex regex(pattern);
+    // std::string stripped = std::regex_replace(str, regex, "");
+    std::string stripped = string::strip_styles(str);
     int width = tuim::string::length(stripped) + padding*2;
     return width;
 }
@@ -1729,13 +1732,13 @@ inline std::string tuim::string::fill(const std::string &str, size_t length) {
     return res;
 }
 
-bool tuim::string::is_style(const std::string& str, size_t pos) {
+inline bool tuim::string::is_style(const std::string& str, size_t pos) {
     if(pos > 0 && str.at(pos-1) == TUIM_STYLE_ESCAPE)
         return false;
     return str.at(pos) == TUIM_STYLE_CODE || str.at(pos) == TUIM_COLOR_CODE;
 }
 
-std::pair<tuim::font::style, size_t> tuim::string::extract_style(const std::string& str, size_t pos) {
+inline std::pair<tuim::font::style, size_t> tuim::string::extract_style(const std::string& str, size_t pos) {
     context* ctx = get_context();
     font::style style;
 
@@ -1792,8 +1795,26 @@ std::pair<tuim::font::style, size_t> tuim::string::extract_style(const std::stri
     if(style.type == font::style_type::COLOR)
         style.style_color.background = is_background;
     // Include identifiers (&,#,_) and the semicolon following the style tag
-    size_t style_length = 1 + is_background + code.length() + (pos+code.length() < str.length() && str.at(pos+code.length()) == ';');
+    size_t style_length = 1 + is_background + code.length();
+    style_length += (pos+style_length < str.length() && str.at(pos+style_length) == ';');
     return {style, style_length};
+}
+
+inline std::string tuim::string::strip_styles(const std::string& str) {
+    std::string stripped = "";
+    for(size_t i = 0; i < str.length();) {
+        size_t ch_length = char_length(str.at(i));
+        size_t style_length;
+        font::style style;
+        std::tie(style, style_length) = extract_style(str, i);
+        if(style_length > 0) {
+            i += style_length;
+            continue;
+        }
+        stripped += str.substr(i, ch_length);
+        i += ch_length;
+    }
+    return stripped;
 }
 
 inline std::string tuim::string::escape_styles(const std::string& str) {
@@ -1860,6 +1881,10 @@ inline uint32_t tuim::string::to_lowercase(uint32_t code) {
     //ÿ returns Ÿ which is not in order.
     if(code == 0xC3BF)
         return 0xC29F;
+
+    // Don't change anything if the character is already lowercase
+    if(code >= 'a' && code <= 'z')
+        return code;
 
     // For latin characters, the difference between the uppercase 
     // and lowercase codepoint is 0x20 (i.e à-À = 0x20).
