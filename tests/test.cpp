@@ -124,6 +124,16 @@ TEST_SUITE("items") {
         CHECK(tuim::calc_text_width("&_acursor") == 9);
     }
 
+    TEST_CASE("calc_text_vector_width") {
+        CHECK(tuim::calc_text_vector_width({"hello world", "cap", "elephant"}) == 11);
+        CHECK(tuim::calc_text_vector_width({"1", "#_fffffftuim", "12"}) == 4);
+        CHECK(tuim::calc_text_vector_width({"magenta", "&bstrong", "archs"}) == 7);
+    }
+
+    TEST_CASE("calc_columns_width") {
+        CHECK(tuim::calc_columns_width({"a", "abc", "#ffffffabcde"}, {{"1234", "&b023", "1"}, {"#_ffffff12", "1", "12"}}) == std::vector<int>{4,3,5});
+        CHECK(tuim::calc_columns_width({"a", "ab"}, {}) == std::vector<int>{1,2});
+    }
 }
 
 int main(int argc, char* argv[]) {
