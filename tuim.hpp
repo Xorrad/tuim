@@ -273,7 +273,7 @@ namespace tuim {
     void new_line(); // Break to a new line
     void clear(); // Clear terminal output
     void clear_line(); // Clear terminal output
-    void print_to_screen(std::string str); // Print text to screen and reset style
+    void print_to_screen(const std::string& str); // Print text to screen and reset style
     template<typename ... Args> void print(const char* fmt, Args ... args); // Format text for printing to screen
     void display(); // Display screen
     void update(tuim::keyboard::keycode key); // Update the items
@@ -290,6 +290,7 @@ namespace tuim {
         void gotoxy(const vec2& pos); // Move terminal cursor to position
         void clear(); // Clear terminal
         void clear_line(); // Clear current terminal line
+        void clear_end(); // Clear from cursor to end
         void reset_styles(); // Reset all terminal modes/colors
 
         void set_cursor_visible(bool cursor); // Set the terminal cursor visible
@@ -623,7 +624,7 @@ inline void tuim::clear_line() {
     ctx->current_frame.clear_line(ctx->cursor.y);
 }
 
-inline void tuim::print_to_screen(std::string str) {
+inline void tuim::print_to_screen(const std::string& str) {
     context* ctx = get_context();
 
     // We read the string and move the global cursor accordingly
@@ -646,16 +647,24 @@ inline void tuim::print_to_screen(std::string str) {
                     if(ctx->style_modes.count(style.style_mode))
                         ctx->style_modes.erase(style.style_mode);
                     else
-                        ctx->style_modes.emplace(style.style_mode, true);
+                        ctx->style_modes[style.style_mode] = true;
                     if(style.style_mode == font::mode::RESET) {
                         reset_styles();
-                        ctx->style_modes.emplace(font::mode::RESET, true);
+                        uint32_t index = ctx->current_frame.get_index(ctx->cursor);
+                        if(index >= 0) {
+                            if(ctx->current_frame.buffer.count(index) == 0) {
+                                screen::character ch = {" ", get_current_foreground(), get_current_background(), {font::mode::RESET}};
+                                ctx->current_frame.set_character(index, ch);
+                            }
+                            else {
+                                screen::character ch = ctx->current_frame.get_character(index);
+                                ch.modes.push_back(font::mode::RESET);
+                                ctx->current_frame.set_character(index, ch);
+                            }
+                        }
                     }
                     break;
             }
-            // std::ofstream file("print_to_screen.txt", std::ios::app);
-            // file << style_length << std::endl;
-            // file.close();
             i += style_length;
             continue;
         }
@@ -673,11 +682,15 @@ inline void tuim::print_to_screen(std::string str) {
                 i++;
             } while(i < str.length() && !((str.at(i) >= 'a' && str.at(i) <= 'z') || (str.at(i) >= 'A' && str.at(i) <= 'Z')));
         }
-        // Other character only take one "space"
+        // Other character only take one "space" in the buffer
         else {
             uint32_t index = ctx->current_frame.get_index(ctx->cursor);
             screen::character ch = {str.substr(i, l), get_current_foreground(), get_current_background(), get_current_modes()};
-            ctx->style_modes.erase(font::mode::RESET);
+            if(ctx->current_frame.buffer.count(index) == 1 && ctx->current_frame.buffer.at(index).str == " ") {
+                const std::vector<font::mode>& modes = ctx->current_frame.buffer.at(index).modes;
+                if(modes.size() > 0 && modes.at(0) == font::mode::RESET)
+                    ch.modes.push_back(font::mode::RESET);
+            }
             ctx->current_frame.set_character(index, ch);
             ctx->cursor.x++;
         }
@@ -685,7 +698,6 @@ inline void tuim::print_to_screen(std::string str) {
         i += l;
     }
     update_container();
-    // printf("%s", str.c_str());
 }
 
 template<typename ... Args>
@@ -722,49 +734,58 @@ inline void tuim::display() {
     vec2 last_cursor = {-1,0};
     uint32_t max_index = current_frame.size.x + current_frame.size.x*current_frame.size.y;
 
-    // std::ofstream file("test.txt");
-
     for(uint32_t index = 0; index < max_index; index++) {
         if(current_frame.buffer.count(index)) {
             screen::character& ch = current_frame.get_character(index);
+
+            // Styles have to be taken into account every frame
+            // because they are not stored "in the screen" like characters
+            // but are more like toggles
+            auto reset_pos = std::find(ch.modes.begin(), ch.modes.end(), font::mode::RESET);
+            if(reset_pos != ch.modes.end()) {
+                printf(font::to_ansi(font::mode::RESET, true).c_str());
+                foreground = {255,255,255,false};
+                background = {0,0,0,true};
+                ch.modes.erase(reset_pos);
+            }
+            for(font::mode mode : ch.modes) {
+                if(modes.count(mode) == 0) {
+                    printf(font::to_ansi(mode, true).c_str());
+                }
+                modes[mode] = true;
+            }
+            for(auto it = modes.begin(); it != modes.end();) {
+                if(!it->second) {
+                    printf(font::to_ansi(it->first, false).c_str());
+                    it = modes.erase(it);
+                }
+                else {
+                    modes[it->first] = false;
+                    it++;
+                }
+            }
+            if(foreground != ch.foreground) {
+                printf(color::to_ansi(ch.foreground).c_str());
+                foreground = ch.foreground;
+            }
+            if(background != ch.background) {
+                printf(color::to_ansi(ch.background).c_str());
+                background = ch.background;
+            }
+
+            // If the character was not present during last frame, or
+            // if it has been changed, 
             if(last_frame.buffer.count(index) == 0 || !last_frame.is_character(index, ch)) {
                 if(last_cursor.x != cursor.x-1 || last_cursor.y != cursor.y)
-                    printf("\033[%d;%dH", cursor.y, cursor.x);
-                if(std::find(ch.modes.begin(), ch.modes.end(), font::mode::RESET) != ch.modes.end()) {
-                    printf(font::to_ansi(font::mode::RESET, true).c_str());
-                    foreground = {255,255,255,false};
-                    background = {0,0,0,true};
-                }
-                for(font::mode mode : ch.modes) {
-                    if(mode == font::mode::RESET)
-                        continue;
-
-                    if(modes.count(mode) == 0) {
-                        modes.emplace(mode, true);
-                    }
-                    else {
-                        modes.emplace(mode, false);
-                    }
-                    printf(font::to_ansi(mode, modes.at(mode)).c_str());
-                }
-                if(foreground != ch.foreground) {
-                    printf(color::to_ansi(ch.foreground).c_str());
-                    foreground = ch.foreground;
-                }
-                if(background != ch.background) {
-                    printf(color::to_ansi(ch.background).c_str());
-                    background = ch.background;
-                }
-                // file << ch.str.c_str();
+                    native::gotoxy(cursor);
                 printf(ch.str.c_str());
                 last_cursor = cursor;
             }    
         }
-        else {
-            if(last_frame.buffer.count(index)) {
-                printf("\033[%d;%dH", cursor.y, cursor.x);
-                printf("\033[0m ");
-            }
+        else if(last_frame.buffer.count(index)) {
+            native::gotoxy(cursor);
+            native::reset_styles();
+            printf(" ");
         }
 
         cursor.x++;
@@ -775,12 +796,10 @@ inline void tuim::display() {
     }
     // Reset modes and colors
     // Clear from the last line to end of screen
-    printf("\033[0m");
-    printf("\033[%d;%dH", cursor.y+1, 0);
-    printf("\033[0J");
+    native::reset_styles();
+    native::gotoxy({0, cursor.y+1});
+    native::clear_end();
     ctx->last_frame = ctx->current_frame;
-
-    // file.close();
 }
 
 /***********************************************************
@@ -812,6 +831,10 @@ inline void tuim::native::clear() {
 
 inline void tuim::native::clear_line() {
     printf("\033[2K");
+}
+
+inline void tuim::native::clear_end() {
+    printf("\033[0J");
 }
 
 inline void tuim::native::reset_styles() {
@@ -1963,7 +1986,7 @@ inline void tuim::screen::buffer::set_character(uint32_t index, character ch) {
     // if(index >= max_index) {
     //     resize(vec2{(int) size.x, (int)(size.y + ceil((max_index - index)/size.x))});
     // }
-    buffer.emplace(index, ch);
+    buffer[index] = ch;
 }
 
 inline void tuim::screen::buffer::clear_line(uint32_t y) {
@@ -2099,7 +2122,7 @@ inline tuim::font::mode tuim::font::from_code(const std::string &str) {
 inline std::string tuim::font::to_ansi(mode mode, bool enabled) {
     int code = (int) mode;
     if(!enabled && mode != mode::RESET)
-        code += 21;
+        code += (20 + (code == 1));
     return "\033[" + std::to_string(code) + "m";
 }
 
