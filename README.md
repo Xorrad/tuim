@@ -149,18 +149,17 @@ You can add a semicolon after the color code for readability:
 tuim::print("#ff0000;Foreground");
 ```
 
-### Special Codes
+### Text Modes
 
-`&r`: clear colors stack and reset color to default.  
-
-`&b`: toggle bold style.
-`&d`: toggle dim style.
-`&i`: toggle italic style.
-`&u`: toggle underlined style.
-`&g`: toggle blinking style.
-`&n`: toggle inverse style.
-`&h`: toggle hidden style.
-`&s`: toggle strikethrough style.
+- `&r` clear colors stack and reset color to default.  
+- `&b` toggle bold style.
+- `&d` toggle dim style.
+- `&i` toggle italic style.
+- `&u` toggle underlined style.
+- `&g` toggle blinking style.
+- `&n` toggle inverse style.
+- `&h` toggle hidden style.
+- `&s` toggle strikethrough style.
 
 ### Custom Codes
 
