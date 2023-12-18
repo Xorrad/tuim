@@ -270,7 +270,7 @@ namespace tuim {
     std::vector<font::mode> get_current_modes(); // Get active modes
     void reset_styles(); // Reset tuim styles
 
-    void new_line(); // Break to a new line
+    void new_line(int count = 1); // Break to a new line
     void clear(); // Clear terminal output
     void clear_line(); // Clear terminal output
     void print_to_screen(const std::string& str); // Print text to screen and reset style
@@ -605,9 +605,9 @@ inline void tuim::reset_styles() {
     ctx->background_color = {0, 0, 0, true};
 }
 
-inline void tuim::new_line() {
+inline void tuim::new_line(int count) {
     context* ctx = get_context();
-    ctx->cursor = {(int) get_active_margin(), ctx->cursor.y+1};
+    ctx->cursor = {(int) get_active_margin(), ctx->cursor.y+count};
 }
 
 inline void tuim::clear() {
@@ -1296,7 +1296,6 @@ inline bool tuim::input_text(const std::string& id, std::string* value, const st
     context* ctx = get_context();
     tuim::item item = tuim::item{ tuim::str_to_id(id), tuim::item_flags_::ITEM_FLAGS_STAY_ACTIVE };
     tuim::add_item(item);
-
 
     static size_t cursor = value->length();
 
