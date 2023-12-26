@@ -1,45 +1,35 @@
 # tuim
-An immediate mode text-based user interface for terminals.
 
-## Containers
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![GitHub issues](https://img.shields.io/github/issues/xorrad/tuim)](https://github.com/xorrad/tuim/issues)
+[![GitHub stars](https://img.shields.io/github/stars/xorrad/tuim.svg?style=flat&label=stars)](https://github.com/xorrad/tuim)
 
-```
-<-------- width -------->  
-------------------------- ^  
-| [X] button            | |  
-|                       | height  
-|                       | |  
-|                       | |  
-------------------------- v  
-```
+An header-only immediate mode text-based user interface for terminals.
 
-The size of the container is adjusted when printing elements. If the container size is fixed, and
-the size of the elements is greater than the container's, a scrollbar will appear.
+## Table of Contents
 
+- [Installation](#installation)
+- [Features](#features)
+- [Examples](#examples)
+- [Contributing](#contributing)
+- [License](#license)
 
-### Columns
+## Installation
 
-Columns are containers printed on the same line as the other columns in a parent container.
-The column go to the next line when there isn't enough space horizontally in the container.
+Download the header file: [tuim.hpp](https://raw.githubusercontent.com/Xorrad/nage/master/tuim.hpp), then include it into your project and initialize and free *tuim* as in the following example:
 
-```
----------------------------------
-| -------------- -------------- |
-| |            | |            | |
-| |  column 1  | |  column 2  | |
-| |            | |            | |
-| |            | |            | |
-| -------------- -------------- |
-| --------------                |
-| |            |                |
-| |  column 3  |                |
-| |            |                |
-| |            |                |
-| --------------                |
----------------------------------
+```cpp
+#include "tuim.hpp"
+
+int main() {
+    tuim::init();
+    // your code...
+    tuim::delete_context();
+    return 0;
+}
 ```
 
-## Components
+## Features
 
 ### Text
 
@@ -107,34 +97,25 @@ Available flags:
 
 ```cpp
 tuim::hr(length);
+
+tuim::new_line();
+tuim::clear();
+tuim::clear_line();
 ```
 
-## Cursor
-
-### Position
-
-The cursor position is stored globally. When `tuim::print(fmt, ...)` is called, it checks the real length of `fmt` and move the cursor accordingly.
-It also updates the container size and position.
+### Cursor
 
 ```cpp
 tuim::vec2 pos = tuim::get_cursor();
-```
 
-```cpp
-tuim::gotoxy(pos);
-// OR
 tuim::gotoxy({x, y});
-```
 
-### Style
-
-```cpp
 tuim::set_cursor_visible(false);
 ```
 
-## Inline Style Tags
+### Inline Style Tags
 
-### Inline Colors
+#### Inline Colors
 
 Use `#` and `#_` to change the foreground and background color respectively:
 
@@ -149,7 +130,7 @@ You can add a semicolon after the color code for readability:
 tuim::print("#ff0000;Foreground");
 ```
 
-### Text Modes
+#### Text Modes
 
 - `&r` clear colors stack and reset color to default.  
 - `&b` toggle bold style.
@@ -161,7 +142,7 @@ tuim::print("#ff0000;Foreground");
 - `&h` toggle hidden style.
 - `&s` toggle strikethrough style.
 
-### Custom Codes
+#### Custom Codes
 
 ```cpp
 font::register_style("a", font::make_style(color::from_code("#ff0000")));
@@ -171,3 +152,16 @@ tuim::print("&aGreen Foreground");
 tuim::print("&_aGreen Background");
 tuim::print("&kBold");
 ```
+
+
+## Examples
+
+There are a few examples available in the [examples](https://github.com/Xorrad/tuim/tree/master/examples) directory. Do not hesitate to check them to learn more about using predefined generators and making new ones.
+
+## Contributing
+
+Contributions to the project are highly appreciated! There are several ways to get involved: you can contribute by reporting any issues you encounter, suggesting new features that could enhance the project, or even by actively participating in the development process through the submission of pull requests.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](https://raw.githubusercontent.com/Xorrad/tuim/master/LICENSE) file for details.
