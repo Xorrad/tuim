@@ -188,7 +188,8 @@ namespace tuim {
         color from_code(std::string str); // Convert string color code to rgb
         color from_hex(std::string str);  // Convert string hexadecimal color code to rgb
         color from_hex(unsigned int hex); // Convert hexadecimal color code to rgb
-        unsigned int to_hex(color color); // Convert rgb color code to hexadecimal
+        unsigned int to_int(color color); // Convert rgb color code to int
+        std::string to_hex(color color); // Convert rgb color code to hexadecimal
         std::string to_ansi(color color); // Convert rgb color to ansi color
     }
 
@@ -2089,8 +2090,17 @@ inline tuim::color::color tuim::color::from_hex(unsigned int hex) {
     return color;
 }
 
-inline unsigned int tuim::color::to_hex(color color) {
+inline unsigned int tuim::color::to_int(color color) {
     return (color.r << 16) + (color.g << 8) + color.b;
+}
+
+inline std::string tuim::color::to_hex(color color) {
+    std::stringstream ss;
+    if(color.background) ss << TUIM_COLOR_BACKGROUND;
+    ss << std::hex << std::setw(2) << std::setfill('0') << color.r;
+    ss << std::hex << std::setw(2) << std::setfill('0') << color.g;
+    ss << std::hex << std::setw(2) << std::setfill('0') << color.b;
+    return ss.str();
 }
 
 inline std::string tuim::color::to_ansi(color color) {
