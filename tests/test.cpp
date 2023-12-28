@@ -136,6 +136,38 @@ TEST_SUITE("items") {
     }
 }
 
+TEST_SUITE("colors") {
+
+    TEST_CASE("from_hex") {
+        tuim::color::color c = tuim::color::from_hex("ffffff");
+        CHECK(c.r == 255);
+        CHECK(c.g == 255);
+        CHECK(c.b == 255);
+        CHECK(c.background == false);
+        
+        c = tuim::color::from_hex("_1050f0");
+        CHECK(c.r == 16);
+        CHECK(c.g == 80);
+        CHECK(c.b == 240);
+        CHECK(c.background == true);
+    }
+
+    TEST_CASE("to_int") {
+        CHECK(tuim::color::to_int(tuim::color::color{159, 171, 8}) == 10464008);
+    }
+    
+    TEST_CASE("to_hex") {
+        CHECK(tuim::color::to_hex(tuim::color::color{255, 255, 255, false}) == "ffffff");
+        CHECK(tuim::color::to_hex(tuim::color::color{16, 80, 240, true}) == "_1050f0");
+        CHECK(tuim::color::to_hex(tuim::color::from_hex("_ae8f01")) == "_ae8f01");
+    }
+
+    TEST_CASE("to_int") {
+        CHECK(tuim::color::to_ansi(tuim::color::color{255, 255, 255, false}) == "\033[38;2;255;255;255m");
+        CHECK(tuim::color::to_ansi(tuim::color::color{10, 11, 12, true}) == "\033[48;2;10;11;12m");
+    }
+}
+
 int main(int argc, char* argv[]) {
     tuim::init(argc, argv);
     printf("\033[?1049l"); // disabled alternate buffer
