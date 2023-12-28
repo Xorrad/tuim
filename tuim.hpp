@@ -600,7 +600,7 @@ inline std::vector<tuim::font::mode> tuim::get_current_modes() {
 }
 
 inline void tuim::reset_styles() {
-    context* context = get_context();
+    context* ctx = get_context();
     ctx->style_modes.clear();
     ctx->foreground_color = {255, 255, 255, false};
     ctx->background_color = {0, 0, 0, true};
@@ -1969,7 +1969,7 @@ inline uint32_t tuim::screen::buffer::get_index(const vec2& pos) {
 }
 
 inline bool tuim::screen::buffer::is_in_buffer(uint32_t index) {
-    return index <= (size.x+size.x*size.y);
+    return index <= (uint32_t) (size.x+size.x*size.y);
 }
 
 inline bool tuim::screen::buffer::is_character(uint32_t index, const character& ch) {
@@ -1981,8 +1981,8 @@ inline tuim::screen::character& tuim::screen::buffer::get_character(uint32_t ind
 }
 
 inline void tuim::screen::buffer::set_character(uint32_t index, character ch) {
-    uint32_t max_index = size.x + size.x * size.y;
     // Resize vertically if index out of bounds (add new lines)
+    // uint32_t max_index = size.x + size.x * size.y;
     // if(index >= max_index) {
     //     resize(vec2{(int) size.x, (int)(size.y + ceil((max_index - index)/size.x))});
     // }
@@ -2013,7 +2013,7 @@ inline void tuim::screen::buffer::resize(const vec2& new_size) {
     // Handle width increase
     if(size.x < new_size.x) {
         uint32_t diff = new_size.x - size.x;
-        for(uint32_t i = max_index-1; i > size.x; i--) {
+        for(uint32_t i = max_index-1; i > (uint32_t) size.x; i--) {
             if(buffer.count(i) == 0)
                 continue;
             vec2 pos = get_position(i);
