@@ -26,13 +26,13 @@ all: $(TARGETS) test clean
 test: tests/tests.cpp
 	@clear
 	@mkdir -p bin
-	$(CXX) $(CXXFLAGS) -o bin/$@ $< $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -Ivendor -o bin/$@ $< $(LDFLAGS)
 	./bin/$@
 
 %: examples/%.cpp
 	@clear
 	@mkdir -p bin
-	$(CXX) $(CXXFLAGS) -o bin/$@ $< $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -Ivendor -o bin/$@ $< $(LDFLAGS)
 	./bin/$@
 
 clean:
