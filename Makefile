@@ -3,15 +3,15 @@ MAKEFLAGS += -j4
 
 # Compiler flags
 CXX 	  := g++-13
-CXXFLAGS := -std=c++20 -Wall -Wno-format-security -pedantic-errors
-LDFLAGS   := -L/usr/lib -lstdc++ -lm -ldl -ltinfo
+CXXFLAGS := -std=c++20 -Wall -Wno-format-security -Wno-sign-compare -pedantic-errors
+LDFLAGS   := -L/usr/lib -lstdc++ -lm -ldl -ltinfo -lbfd -ldw
 
 # Directories
 SRC 	  := $(wildcard examples/*.cpp)
 TARGETS   := $(SRC:examples/%.cpp=%)
 
 # Build type (debug, release)
-BUILD_TYPE := release
+BUILD_TYPE := debug
 ifeq ($(BUILD_TYPE),debug)
     CXXFLAGS += -O0 -DDEBUG -g
 else ifeq ($(BUILD_TYPE),release)
