@@ -13,12 +13,12 @@ int main(int argc, char* argv[]) {
 
         tuim::vec2 size = tuim::Terminal::GetTerminalSize();
         tuim::Print("line 1\t\tline1\tline1\nline 2\nline 3");
-        // tuim::Print("terminal size: {}{}", size.x, size.y);
+        tuim::Print("terminal size: {} {}", size.x, size.y);
 
         tuim::Display();
 
-        // usleep(200 * 1000);
-        std::cin.get();
+        usleep(200 * 1000);
+        // std::cin.get();
     }
 
     // Delete the context to avoid memory leaks.

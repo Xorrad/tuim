@@ -27,6 +27,7 @@ namespace tuim {
 #include <cstdint> // uint32_t...
 #include <functional> // std::function
 #include <format> // std::format
+#include <memory> // std::shared_ptr, std::unique_ptr...
 
 #ifdef __linux__
 #include <unistd.h> // STDOUT_FILENO
@@ -176,12 +177,12 @@ namespace tuim {
         ~Frame() = default;
     
         vec2 GetSize() const;
-        Cell* Get(const vec2& pos);
-        Cell* Get(size_t x, size_t y);
-        void Set(const vec2& pos, Cell* cell);
+        std::shared_ptr<Cell> Get(const vec2& pos);
+        std::shared_ptr<Cell> Get(size_t x, size_t y);
+        void Set(const vec2& pos, std::shared_ptr<Cell> cell);
         void Clear();
 
-        std::vector<std::vector<Cell*>> m_Cells;
+        std::vector<std::vector<std::shared_ptr<Cell>>> m_Cells;
     };
 
     /***********************************************************
@@ -310,7 +311,7 @@ void tuim::Display() {
 
     for (size_t y = 0; y < std::min(frameSize.y, terminalSize.y); y++) {
         for (size_t x = 0; x < std::min(ctx->m_Frame.m_Cells[y].size(), (size_t) terminalSize.x); x++) {
-            Cell* cell = ctx->m_Frame.Get(x, y);
+            std::shared_ptr<Cell> cell = ctx->m_Frame.Get(x, y);
             if (cell != nullptr) {
                 // Do not change the cursor position using ANSI if there are only a few spaces.
                 size_t xDiff = x - prevPos.x;
@@ -392,11 +393,11 @@ void tuim::Terminal::ClearStyles() {
 
 tuim::Frame::Frame() {
     vec2 terminalSize = tuim::Terminal::GetTerminalSize();
-    m_Cells = std::vector<std::vector<Cell*>>(terminalSize.y, std::vector<Cell*>(terminalSize.x, nullptr));
+    m_Cells = std::vector<std::vector<std::shared_ptr<Cell>>>(terminalSize.y, std::vector<std::shared_ptr<Cell>>(terminalSize.x, nullptr));
 }
 
 tuim::Frame::Frame(const vec2& size) {
-    m_Cells = std::vector<std::vector<Cell*>>(size.y, std::vector<Cell*>(size.x, nullptr));
+    m_Cells = std::vector<std::vector<std::shared_ptr<Cell>>>(size.y, std::vector<std::shared_ptr<Cell>>(size.x, nullptr));
 }
 
 tuim::vec2 tuim::Frame::GetSize() const {
@@ -406,24 +407,21 @@ tuim::vec2 tuim::Frame::GetSize() const {
     return vec2(m_Cells.size(), m_Cells.size());
 }
 
-tuim::Cell* tuim::Frame::Get(const tuim::vec2& pos) {
+std::shared_ptr<tuim::Cell> tuim::Frame::Get(const tuim::vec2& pos) {
     return m_Cells[pos.y][pos.x];
 }
 
-tuim::Cell* tuim::Frame::Get(size_t x, size_t y) {
+std::shared_ptr<tuim::Cell> tuim::Frame::Get(size_t x, size_t y) {
     return m_Cells[y][x];
 }
 
-void tuim::Frame::Set(const tuim::vec2& pos, tuim::Cell* cell) {
+void tuim::Frame::Set(const tuim::vec2& pos, std::shared_ptr<tuim::Cell> cell) {
     // Make sure to resize the vectors in case the position is
     // beyond the column or line size.
     if (m_Cells.size() <= pos.y)
-        m_Cells.resize(pos.y+1, std::vector<Cell*>(pos.x, nullptr));
+        m_Cells.resize(pos.y+1, std::vector<std::shared_ptr<Cell>>(pos.x, nullptr));
     if (m_Cells[pos.y].size() <= pos.x)
         m_Cells[pos.y].resize(pos.x+1, nullptr);
-    // Make sure to delete the previous cell pointer.
-    if (m_Cells[pos.y][pos.x] != nullptr)
-        delete m_Cells[pos.y][pos.x];
     m_Cells[pos.y][pos.x] = cell;
 }
 
@@ -449,7 +447,7 @@ template <typename... Args> void tuim::Print(std::format_string<Args...> fmt, Ar
             ctx->m_Cursor = vec2(0, ctx->m_Cursor.y+1);
         }
         else {
-            ctx->m_Frame.Set(ctx->m_Cursor, new Cell(ch));
+            ctx->m_Frame.Set(ctx->m_Cursor, std::make_shared<Cell>(ch));
             ctx->m_Cursor.x++;
         }
     });
