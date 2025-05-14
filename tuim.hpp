@@ -513,7 +513,7 @@ void tuim::Display() {
     vec2 frameSize = ctx->m_Frame->GetSize();
     vec2 prevPos = vec2(-1, 0);
 
-    for (size_t y = 0; y < std::min(frameSize.y, terminalSize.y); y++) {
+    for (size_t y = 0; y < std::min(frameSize.y, terminalSize.y-1); y++) {
         size_t lineWidth = std::min(
             std::max(
                 ctx->m_Frame->m_Cells[y].size(),
