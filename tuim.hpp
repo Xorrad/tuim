@@ -33,6 +33,7 @@ namespace tuim {
 #include <unistd.h> // STDOUT_FILENO
 #include <termios.h> // termios, tcgetattr, tcsetattr
 #include <sys/ioctl.h> // winsize, ioctl
+#include <sys/select.h> // select
 #elif _WIN32
 #error "Windows is not supported yet."
 #else
@@ -100,9 +101,93 @@ namespace tuim {
     *                         INPUTS                           *
     ***********************************************************/
 
-    enum class Key {};
+    #define TUIM_MAKE_KEY2(a, b) (b<<8) + c
+    #define TUIM_MAKE_KEY3(a, b, c) (a<<16) + (b<<8) + c
+    #define TUIM_MAKE_KEY4(a, b, c, d) (a<<24) + (b<<16) + (c<<8) + d
 
-    //
+    enum Key : uint32_t {
+        NONE = 0,
+        
+        // Controls
+        TAB        = 9,
+        ENTER      = 10,
+        ESCAPE     = 27,
+        BACKSPACE  = 127,
+        SPACE      = 32,
+    
+        // Arrows & Home/End
+        UP    = TUIM_MAKE_KEY3(27, 91, 'A'),
+        DOWN  = TUIM_MAKE_KEY3(27, 91, 'B'),
+        RIGHT = TUIM_MAKE_KEY3(27, 91, 'C'),
+        LEFT  = TUIM_MAKE_KEY3(27, 91, 'D'),
+        HOME  = TUIM_MAKE_KEY3(27, 79, 'H'),
+        END   = TUIM_MAKE_KEY3(27, 79, 'F'),
+    
+        // Function Keys
+        F1  = TUIM_MAKE_KEY3(27, 79, 80),
+        F2  = TUIM_MAKE_KEY3(27, 79, 81),
+        F3  = TUIM_MAKE_KEY3(27, 79, 82),
+        F4  = TUIM_MAKE_KEY3(27, 79, 83),
+        F5  = TUIM_MAKE_KEY3(27, 79, 84),
+        F6  = TUIM_MAKE_KEY3(27, 79, 85),
+        F7  = TUIM_MAKE_KEY3(27, 79, 86),
+        F8  = TUIM_MAKE_KEY3(27, 79, 87),
+        F9  = TUIM_MAKE_KEY3(27, 79, 89),
+        F10 = TUIM_MAKE_KEY3(27, 79, 90),
+        F11 = TUIM_MAKE_KEY3(27, 79, 91),
+        F12 = TUIM_MAKE_KEY3(27, 79, 92),
+    
+        // Edit
+        INSERT    = TUIM_MAKE_KEY4(27, 91, 50, 126), // ESC [ 2 ~
+        DELETE    = TUIM_MAKE_KEY4(27, 91, 51, 126), // ESC [ 3 ~
+        PAGE_UP   = TUIM_MAKE_KEY4(27, 91, 53, 126), // ESC [ 5 ~
+        PAGE_DOWN = TUIM_MAKE_KEY4(27, 91, 54, 126), // ESC [ 6 ~
+    
+        // Digits
+        DIGIT_0 = '0',
+        DIGIT_1 = '1',
+        DIGIT_2 = '2',
+        DIGIT_3 = '3',
+        DIGIT_4 = '4',
+        DIGIT_5 = '5',
+        DIGIT_6 = '6',
+        DIGIT_7 = '7',
+        DIGIT_8 = '8',
+        DIGIT_9 = '9',
+    
+        // Lowercase Letters
+        A = 'a',
+        B = 'b',
+        C = 'c',
+        D = 'd',
+        E = 'e',
+        F = 'f',
+        G = 'g',
+        H = 'h',
+        I = 'i',
+        J = 'j',
+        K = 'k',
+        L = 'l',
+        M = 'm',
+        N = 'n',
+        O = 'o',
+        P = 'p',
+        Q = 'q',
+        R = 'r',
+        S = 's',
+        T = 't',
+        U = 'u',
+        V = 'v',
+        W = 'w',
+        X = 'x',
+        Y = 'y',
+        Z = 'z',
+    };
+    
+    char32_t PollKeyCode(); // Wait until timeout for a key to be pressed
+    Key GetPressedKey(); // Get the current frame pressed key as an enum key
+    bool IsKeyPressed(); // Check if a key has been pressed
+    bool IsKeyPressed(Key key); // Check if a specific key has been pressed
 
     /***********************************************************
     *                         COLORS                           *
@@ -131,8 +216,9 @@ namespace tuim {
     void SetTitle(std::string_view title); // Change the terminal title
     void SetCursorVisibility(bool visible); // Change the cursor visibility
     void SetFullscreen(bool fullscreen); // Change the terminal to full screen
+    void SetFramerate(float framerate); // Change the delay between two frame are calculated and drawn
 
-    void Update(Key key); // Update the frame depending on the key pressed
+    void Update(char32_t keyCode); // Update the frame depending on the key pressed
     void Clear(); // Clear the current frame buffer
     void Display(); // Draw the current frame buffer to the terminal
 
@@ -142,7 +228,7 @@ namespace tuim {
 
     namespace Terminal {
         bool IsUserInputsVisible(); // Determine if user inputs are visible
-        vec2 GetTerminalSize(); // Determine the size in cells of the terminal window.
+        vec2 GetTerminalSize(); // Determine the size in cells of the terminal window
 
         void SetTitle(std::string_view title); // Change the terminal title
         void SetCursorVisibility(bool visible); // Change the terminal visibility
@@ -216,9 +302,10 @@ namespace tuim {
     *                    STRING FUNCTIONS                      *
     ***********************************************************/
 
-    uint8_t Utf8CharLength(char c);
-    std::string Utf8Char32ToString(char32_t ch);
-    void Utf8IterateString(std::string_view sv, std::function<void(char32_t, size_t)> func);
+    uint8_t Utf8CharLength(char c); // Returns the expected UTF-8 length of a specific character
+    std::string Utf8Char32ToString(char32_t ch); // Returns a string from a UTF-8 character
+    char32_t Utf8Decode(const char* bytes, size_t length); // Returns a 32 bytes UTF-8 character from an array of bytes
+    void Utf8IterateString(std::string_view sv, std::function<void(char32_t, size_t)> func); // Iterate over UTF-8 characters in a regular string
     
     /**********************************************************
     *                        CONTEXT                          *
@@ -227,12 +314,16 @@ namespace tuim {
     class Context {
     public:
         Context() {
+            m_Framerate = 60.f;
+            m_PressedKeyCode = 0;
             m_Cursor = vec2(0, 0);
         }
         ~Context() = default;
 
+        float m_Framerate;
+        char32_t m_PressedKeyCode;
         vec2 m_Cursor;
-        Frame m_Frame; // Final screen frame that is going to be displayed to the screen.
+        Frame m_Frame; // Final screen frame that is going to be displayed to the screen
         std::queue<Container> m_ContainersStack;
     };
 
@@ -246,6 +337,102 @@ namespace tuim {
 /***********************************************************
 *                   INLINE DEFINITIONS                     *
 ***********************************************************/
+
+/***********************************************************
+*                         INPUTS                           *
+***********************************************************/
+
+char32_t tuim::PollKeyCode() {
+    Context* ctx = tuim::GetCtx();
+
+    // Save original state.
+    struct termios oldState, newState;
+    tcgetattr(STDIN_FILENO, &oldState);
+    newState = oldState;
+
+    // Disable canonical mode, echo and set a timeout depending on the definied framerate.
+    newState.c_lflag &= ~(ICANON | ECHO);
+    newState.c_cc[VMIN] = 1;
+    newState.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &newState);
+
+    // Wait for an input using a timeout.
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(STDIN_FILENO, &set);
+    timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = ((int) (1000 / ctx->m_Framerate)) * 1000;
+    
+    if (select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout) != 1) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldState);
+        return 0;
+    }
+    
+    char buffer[4] = {0};
+    ssize_t totalBytes = 0;
+    ssize_t expectedBytes = 0;
+
+    // Read the first byte.
+    if (read(STDIN_FILENO, &buffer[0], 1) != 1) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldState);
+        return 0;
+    }
+    totalBytes = 1;
+
+    // Handle Escape sequences by initializing the number of expected bytes
+    // to 5 in order to avoid the next step of calculating expected bytes
+    // for UTF8 characters.
+    // TODO: handle special keys better, including F6, F7... which are 5 bytes escape sequences.
+    if (static_cast<unsigned char>(buffer[0]) == 0x1B) {
+        expectedBytes = 5;
+    }
+
+    // Determine the expected number of bytes left to read (if it isn't an escape sequence).
+    if (expectedBytes == 0) {
+        char8_t first = buffer[0];
+        if ((first & 0x80) == 0x00) expectedBytes = 1;  // ASCII
+        else if ((first & 0xE0) == 0xC0) expectedBytes = 2; // 2-byte UTF-8
+        else if ((first & 0xF0) == 0xE0) expectedBytes = 3; // 3-byte UTF-8
+        else if ((first & 0xF8) == 0xF0) expectedBytes = 4; // 4-byte UTF-8
+        else {  // Invalid UTF-8 start byte
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldState);
+            return 0;
+        }
+    }
+
+    // Read remaining bytes.
+    ssize_t readBytes = read(STDIN_FILENO, &buffer[totalBytes], std::min(expectedBytes, 4L)-totalBytes);
+    totalBytes += readBytes;
+
+    if (totalBytes != expectedBytes && expectedBytes != 5) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldState);
+        return 0;
+    }
+
+    // Pack bytes into a 32 bits char.
+    char32_t keyCode = tuim::Utf8Decode(buffer, totalBytes);
+
+    // Restore original terminal flags.
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldState);
+
+    return keyCode;
+}
+
+tuim::Key tuim::GetPressedKey() {
+    Context* ctx = tuim::GetCtx();
+    return static_cast<tuim::Key>(ctx->m_PressedKeyCode);
+}
+
+bool tuim::IsKeyPressed() {
+    Context* ctx = tuim::GetCtx();
+    return ctx->m_PressedKeyCode == 0;
+}
+
+bool tuim::IsKeyPressed(tuim::Key key) {
+    Context* ctx = tuim::GetCtx();
+    return static_cast<tuim::Key>(ctx->m_PressedKeyCode) == key;
+}
 
 /***********************************************************
 *                    CONTEXT FUNCTIONS                     *
@@ -289,8 +476,15 @@ void tuim::SetFullscreen(bool fullscreen) {
     // TODO: restart the terminal in fullscreen (compatible with at least gnome-terminal).
 }
 
-void tuim::Update(tuim::Key key) {
-    throw std::runtime_error("error: tuim::Update() is not implemented yet.");
+void tuim::SetFramerate(float framerate) {
+    Context* ctx = tuim::GetCtx();
+    ctx->m_Framerate = framerate;
+}
+
+void tuim::Update(char32_t keyCode) {
+    Context* ctx = tuim::GetCtx();
+    ctx->m_PressedKeyCode = keyCode;
+    
     // TODO: implement update function.
 }
 
@@ -483,6 +677,24 @@ std::string tuim::Utf8Char32ToString(char32_t ch) {
         str += static_cast<char>(0x80 | (ch & 0x3F));
     }
     return str;
+}
+
+char32_t tuim::Utf8Decode(const char* bytes, size_t length) {
+    unsigned char b0 = bytes[0];
+
+    // Do not try to decode escape sequence as UTF-8.
+    if (b0 != 0x1B) {
+        if ((b0 & 0x80) == 0x00) return b0;  // 1-byte ASCII
+        if ((b0 & 0xE0) == 0xC0) return ((b0 & 0x1F) << 6) | (bytes[1] & 0x3F); // 2-bytes UTF-8
+        if ((b0 & 0xF0) == 0xE0) return ((b0 & 0x0F) << 12) | ((bytes[1] & 0x3F) << 6) | (bytes[2] & 0x3F); // 3-bytes UTF-8
+        if ((b0 & 0xF8) == 0xF0) return ((b0 & 0x07) << 18) | ((bytes[1] & 0x3F) << 12) | ((bytes[2] & 0x3F) << 6) | (bytes[3] & 0x3F); // 4-bytes UTF-8
+    }
+
+    // Just fill the 32-bytes with the buffer bytes if it isn't a UTF-8 character.
+    char32_t ch = 0;
+    for (int i = 0; i < length; i++)
+        ch = (ch << 8) | static_cast<unsigned char>(bytes[i]);
+    return ch; 
 }
 
 void tuim::Utf8IterateString(std::string_view sv, std::function<void(char32_t, size_t)> func) {
