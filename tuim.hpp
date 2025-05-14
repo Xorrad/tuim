@@ -28,6 +28,7 @@ namespace tuim {
 #include <functional> // std::function
 #include <format> // std::format
 #include <memory> // std::shared_ptr, std::unique_ptr...
+#include <locale> // setlocale
 
 #ifdef __linux__
 #include <unistd.h> // STDOUT_FILENO
@@ -304,11 +305,12 @@ namespace tuim {
     *                    STRING FUNCTIONS                      *
     ***********************************************************/
 
+    int Utf8CharWidth(char32_t ch); // Returns the width (in columns) of a character.
     uint8_t Utf8CharLength(char c); // Returns the expected UTF-8 length of a specific character
     std::string Utf8Char32ToString(char32_t ch); // Returns a string from a UTF-8 character
     char32_t Utf8Decode(const char* bytes, size_t length); // Returns a 32 bytes UTF-8 character from an array of bytes
     void Utf8IterateString(std::string_view sv, std::function<void(char32_t, size_t)> func); // Iterate over UTF-8 characters in a regular string
-    
+
     /**********************************************************
     *                        CONTEXT                          *
     **********************************************************/
@@ -448,6 +450,7 @@ void tuim::CreateContext() {
     tuim::Terminal::SetUserInputsVisibility(false);
     tuim::Terminal::SetCursorVisibility(false);
     tuim::Terminal::Clear();
+    setlocale(LC_CTYPE, "");  // Enable Unicode processing
     tuim::ctx = new tuim::Context();
 }
 
@@ -508,7 +511,7 @@ void tuim::Display() {
     Context* ctx = tuim::GetCtx();
     vec2 terminalSize = tuim::Terminal::GetTerminalSize();
     vec2 frameSize = ctx->m_Frame->GetSize();
-    vec2 prevPos = vec2(0, 0);
+    vec2 prevPos = vec2(-1, 0);
 
     for (size_t y = 0; y < std::min(frameSize.y, terminalSize.y); y++) {
         size_t lineWidth = std::min(
@@ -519,11 +522,13 @@ void tuim::Display() {
             (size_t) terminalSize.x
         );
         for (size_t x = 0; x < lineWidth; x++) {
-            std::shared_ptr<Cell> cell = ctx->m_Frame->Get(x, y);
+            std::shared_ptr<Cell> cell = (ctx->m_Frame->Has(x, y) ? ctx->m_Frame->Get(x, y) : nullptr);
             std::shared_ptr<Cell> prevCell = (ctx->m_PrevFrame != nullptr && ctx->m_PrevFrame->Has(x, y) ? ctx->m_PrevFrame->Get(x, y) : nullptr);
+
+            // Print a character only if it is different that during the previous frame.
             if (cell != prevCell || (cell != nullptr && prevCell != nullptr && cell->m_Character != prevCell->m_Character)) {
                 // Set cursor to pixel if consecutives characters have not been changed since the previous frame.
-                if (prevPos.y != y || prevPos.x != x+1) {
+                if (prevPos.x != x-1) {
                     tuim::Terminal::SetCursorPos(vec2(x, y));
                 }
                 // Replace the previous character by the new one.
@@ -532,6 +537,9 @@ void tuim::Display() {
                     prevPos = vec2(x, y);
                 }
                 else {
+                    uint8_t width = tuim::Utf8CharWidth(cell->m_Character);
+                    if (width == 2)
+                        x++;
                     std::cout << Utf8Char32ToString(cell->m_Character);
                     prevPos = vec2(x, y);
                 }
@@ -545,6 +553,7 @@ void tuim::Display() {
         // Print a new line to the terminal for every line except the last one.
         if (y != frameSize.y-1) {
             std::cout << '\n';
+            prevPos = vec2(-1, y+1);
         }
     }
     tuim::Terminal::ClearEnd();
@@ -674,8 +683,17 @@ template <typename... Args> void tuim::Print(std::format_string<Args...> fmt, Ar
             ctx->m_Cursor = vec2(0, ctx->m_Cursor.y+1);
         }
         else {
-            ctx->m_Frame->Set(ctx->m_Cursor, std::make_shared<Cell>(ch));
-            ctx->m_Cursor.x++;
+            uint8_t width = tuim::Utf8CharWidth(ch);
+            if (width < 1)
+                return;
+            if (width >= 1) {
+                ctx->m_Frame->Set(ctx->m_Cursor, std::make_shared<Cell>(ch));
+                ctx->m_Cursor.x++;
+            }
+            if (width == 2) {
+                ctx->m_Frame->Set(ctx->m_Cursor, nullptr);
+                ctx->m_Cursor.x++;
+            }
         }
     });
 }
@@ -683,6 +701,11 @@ template <typename... Args> void tuim::Print(std::format_string<Args...> fmt, Ar
 /***********************************************************
 *                    STRING FUNCTIONS                      *
 ***********************************************************/
+
+int tuim::Utf8CharWidth(char32_t ch) {
+    wchar_t wc = static_cast<wchar_t>(ch);
+    return wcwidth(wc); // Returns -1, 0, 1, or 2.
+}
 
 uint8_t tuim::Utf8CharLength(char c) {
     if ((c & 0x80) == 0x00) return 1; // 0xxxxxxx
