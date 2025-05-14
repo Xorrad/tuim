@@ -238,6 +238,7 @@ namespace tuim {
 
         void Clear(); // Clear the whole terminal
         void ClearLine(); // Clear the terminal current line
+        void ClearLineEnd(); // Clear the terminal current line from the cursor
         void ClearEnd(); // Clear the terminal from the cursor to the end
         void ClearStyles(); // Remove any active ANSI style
     }
@@ -265,6 +266,7 @@ namespace tuim {
         vec2 GetSize() const;
         std::shared_ptr<Cell> Get(const vec2& pos);
         std::shared_ptr<Cell> Get(size_t x, size_t y);
+        bool Has(size_t x, size_t y) const;
         void Set(const vec2& pos, std::shared_ptr<Cell> cell);
         void Clear();
 
@@ -317,13 +319,16 @@ namespace tuim {
             m_Framerate = 60.f;
             m_PressedKeyCode = 0;
             m_Cursor = vec2(0, 0);
+            m_Frame = std::make_shared<Frame>();
+            m_PrevFrame = nullptr;
         }
         ~Context() = default;
 
         float m_Framerate;
         char32_t m_PressedKeyCode;
         vec2 m_Cursor;
-        Frame m_Frame; // Final screen frame that is going to be displayed to the screen
+        std::shared_ptr<Frame> m_Frame; // Final screen frame that is going to be displayed to the screen
+        std::shared_ptr<Frame> m_PrevFrame; // Last displayed frame to compare with when building the new one
         std::queue<Container> m_ContainersStack;
     };
 
@@ -490,39 +495,59 @@ void tuim::Update(char32_t keyCode) {
 
 void tuim::Clear() {
     Context* ctx = tuim::GetCtx();
-    ctx->m_Frame.Clear();
+    ctx->m_PrevFrame = ctx->m_Frame;
+    ctx->m_Frame = std::make_shared<Frame>();
     ctx->m_Cursor = vec2(0, 0);
 }
 
 void tuim::Display() {
     // TODO: Keep track of the last frame to avoid flickering by clearing the whole terminal screen every frame.
-    tuim::Terminal::Clear();
+    // tuim::Terminal::Clear();
+    tuim::Terminal::SetCursorPos(vec2(0, 0));
 
     Context* ctx = tuim::GetCtx();
     vec2 terminalSize = tuim::Terminal::GetTerminalSize();
-    vec2 frameSize = ctx->m_Frame.GetSize();
+    vec2 frameSize = ctx->m_Frame->GetSize();
     vec2 prevPos = vec2(0, 0);
 
     for (size_t y = 0; y < std::min(frameSize.y, terminalSize.y); y++) {
-        for (size_t x = 0; x < std::min(ctx->m_Frame.m_Cells[y].size(), (size_t) terminalSize.x); x++) {
-            std::shared_ptr<Cell> cell = ctx->m_Frame.Get(x, y);
-            if (cell != nullptr) {
-                // Do not change the cursor position using ANSI if there are only a few spaces.
-                size_t xDiff = x - prevPos.x;
-                if (prevPos.y == y && xDiff >= 5) {
-                    std::cout << std::string(xDiff-1, ' ');
-                }
-                else if (prevPos.y != y || prevPos.x != x+1) {
+        size_t lineWidth = std::min(
+            std::max(
+                ctx->m_Frame->m_Cells[y].size(),
+                (ctx->m_PrevFrame != nullptr ? ctx->m_PrevFrame->m_Cells[y].size() : 0)
+            ),
+            (size_t) terminalSize.x
+        );
+        for (size_t x = 0; x < lineWidth; x++) {
+            std::shared_ptr<Cell> cell = ctx->m_Frame->Get(x, y);
+            std::shared_ptr<Cell> prevCell = (ctx->m_PrevFrame != nullptr && ctx->m_PrevFrame->Has(x, y) ? ctx->m_PrevFrame->Get(x, y) : nullptr);
+            if (cell != prevCell || (cell != nullptr && prevCell != nullptr && cell->m_Character != prevCell->m_Character)) {
+                // Set cursor to pixel if consecutives characters have not been changed since the previous frame.
+                if (prevPos.y != y || prevPos.x != x+1) {
                     tuim::Terminal::SetCursorPos(vec2(x, y));
                 }
-                std::cout << Utf8Char32ToString(cell->m_Character);
-                prevPos = vec2(x, y);
+                // Replace the previous character by the new one.
+                if (cell == nullptr) {
+                    std::cout << ' ';
+                    prevPos = vec2(x, y);
+                }
+                else {
+                    std::cout << Utf8Char32ToString(cell->m_Character);
+                    prevPos = vec2(x, y);
+                }
             }
         }
+        // Clear the remaining of the line.
+        if (lineWidth < terminalSize.x-1) {
+            std::cout << ' ';
+            tuim::Terminal::ClearLineEnd();
+        }
         // Print a new line to the terminal for every line except the last one.
-        if (y != frameSize.y-1)
+        if (y != frameSize.y-1) {
             std::cout << '\n';
+        }
     }
+    tuim::Terminal::ClearEnd();
     std::cout << std::flush;
 }
 
@@ -542,11 +567,11 @@ tuim::vec2 tuim::Terminal::GetTerminalSize() {
 }
 
 void tuim::Terminal::SetTitle(std::string_view title) {
-    printf("\033]0;%s\007", title.data());
+    std::cout << "\033]0;" << title << "\007";
 }
 
 void tuim::Terminal::SetCursorVisibility(bool visible) {
-    printf("\033[?25%c", (visible ? 'h' : 'l'));
+    std::cout << "\033[?25" << (visible ? 'h' : 'l');
 }
 
 void tuim::Terminal::SetUserInputsVisibility(bool visible) {
@@ -558,27 +583,31 @@ void tuim::Terminal::SetUserInputsVisibility(bool visible) {
 }
 
 void tuim::Terminal::SetAlternateBuffer(bool enabled) {
-    printf("\033[?1049%c", (enabled ? 'h' : 'l'));
+    std::cout << "\033[?1049" << (enabled ? 'h' : 'l');
 }
 
 void tuim::Terminal::SetCursorPos(const tuim::vec2& pos) {
-    printf("\033[%d;%dH", pos.y+1, pos.x+1);
+    std::cout << "\033[" << pos.y+1 << ";" << pos.x+1 << "H";
 }
 
 void tuim::Terminal::Clear() {
-    printf("\033[2J\033[0m\033[H");
+    std::cout << "\033[2J\033[0m\033[H";
 }
 
 void tuim::Terminal::ClearLine() {
-    printf("\033[2K");
+    std::cout << "\033[2K";
+}
+
+void tuim::Terminal::ClearLineEnd() {
+    std::cout << "\033[0K";
 }
 
 void tuim::Terminal::ClearEnd() {
-    printf("\033[0J");
+    std::cout << "\033[0J";
 }
 
 void tuim::Terminal::ClearStyles() {
-    printf("\033[0m");
+    std::cout << "\033[0m";
 }
 
 /***********************************************************
@@ -607,6 +636,10 @@ std::shared_ptr<tuim::Cell> tuim::Frame::Get(const tuim::vec2& pos) {
 
 std::shared_ptr<tuim::Cell> tuim::Frame::Get(size_t x, size_t y) {
     return m_Cells[y][x];
+}
+
+bool tuim::Frame::Has(size_t x, size_t y) const {
+    return m_Cells.size() > y && m_Cells[y].size() > x;
 }
 
 void tuim::Frame::Set(const tuim::vec2& pos, std::shared_ptr<tuim::Cell> cell) {
@@ -641,7 +674,7 @@ template <typename... Args> void tuim::Print(std::format_string<Args...> fmt, Ar
             ctx->m_Cursor = vec2(0, ctx->m_Cursor.y+1);
         }
         else {
-            ctx->m_Frame.Set(ctx->m_Cursor, std::make_shared<Cell>(ch));
+            ctx->m_Frame->Set(ctx->m_Cursor, std::make_shared<Cell>(ch));
             ctx->m_Cursor.x++;
         }
     });
