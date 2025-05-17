@@ -23,12 +23,13 @@ namespace tuim {
 #include <string> // std::string
 #include <string_view> // std::string_view
 #include <vector> // std::vector
-#include <queue> // std::queue
+#include <stack> // std::stack
 #include <cstdint> // uint32_t...
 #include <functional> // std::function
 #include <format> // std::format
 #include <memory> // std::shared_ptr, std::unique_ptr...
 #include <locale> // setlocale
+#include <unordered_map> // std::unordered_map
 
 #ifdef __linux__
 #include <unistd.h> // STDOUT_FILENO
@@ -57,6 +58,8 @@ namespace tuim {
     class Frame;
     class Container;
     class Context;
+
+    using ItemId = unsigned long;
 
     /***********************************************************
     *                           MATH                           *
@@ -271,35 +274,45 @@ namespace tuim {
         void Set(const vec2& pos, std::shared_ptr<Cell> cell);
         void Clear();
 
+        vec2 m_Cursor;
         std::vector<std::vector<std::shared_ptr<Cell>>> m_Cells;
     };
+
+    /***********************************************************
+    *                    COMPONENTS/ITEMS                      *
+    ***********************************************************/
+
+    class Item {
+        public:
+            Item() : m_Id(0), m_Size(vec2(0, 0)), m_Pos(vec2(0, 0)) {}
+            virtual ~Item() = default;
+    
+            ItemId m_Id;
+            vec2 m_Size;
+            vec2 m_Pos;
+        };
 
     /***********************************************************
     *                       CONTAINERS                         *
     ***********************************************************/
 
-    class Container {
+    class Container : public Item {
     public:
-        Container();
+        Container() : Item(), m_Flags(CONTAINER_FLAGS_NONE), m_Frame(nullptr) {}
         ~Container() = default;
 
-        vec2 m_Size;
-        vec2 m_Pos;
         ContainerFlags m_Flags;
-        Frame m_Frame;
+        std::shared_ptr<Frame> m_Frame;
     };
+
+    void BeginContainer(std::string_view id, std::string_view label, const vec2& size);
+    void EndContainer();
 
     /***********************************************************
     *                         ITEMS                            *
     ***********************************************************/
 
     template <typename... Args> void Print(std::format_string<Args...> fmt, Args&&... args); // Print a formatted string to the current frame.
-
-    /***********************************************************
-    *                    COMPONENTS/ITEMS                      *
-    ***********************************************************/
-
-    //
 
     /***********************************************************
     *                    STRING FUNCTIONS                      *
@@ -310,6 +323,7 @@ namespace tuim {
     std::string Utf8Char32ToString(char32_t ch); // Returns a string from a UTF-8 character
     char32_t Utf8Decode(const char* bytes, size_t length); // Returns a 32 bytes UTF-8 character from an array of bytes
     void Utf8IterateString(std::string_view sv, std::function<void(char32_t, size_t)> func); // Iterate over UTF-8 characters in a regular string
+    ItemId StringToId(std::string_view sv); // Hash a string to get an integer.
 
     /**********************************************************
     *                        CONTEXT                          *
@@ -320,7 +334,6 @@ namespace tuim {
         Context() {
             m_Framerate = 60.f;
             m_PressedKeyCode = 0;
-            m_Cursor = vec2(0, 0);
             m_Frame = std::make_shared<Frame>();
             m_PrevFrame = nullptr;
         }
@@ -328,11 +341,18 @@ namespace tuim {
 
         float m_Framerate;
         char32_t m_PressedKeyCode;
-        vec2 m_Cursor;
         std::shared_ptr<Frame> m_Frame; // Final screen frame that is going to be displayed to the screen
         std::shared_ptr<Frame> m_PrevFrame; // Last displayed frame to compare with when building the new one
-        std::queue<Container> m_ContainersStack;
+        std::vector<std::shared_ptr<Item>> m_ItemsOrdered; // Insertion order of items.
+        std::unordered_map<ItemId, std::shared_ptr<Item>> m_Items; // Mapped addresses of the frame items.
+        std::stack<ItemId> m_ContainersStack;
     };
+
+    void AddItem(std::shared_ptr<Item> item);
+    void MergeFrame(std::shared_ptr<Frame> frame); // Merge a given frame into the current context frame (can be global or a container).
+    
+    vec2 GetCurrentCursor(); // Returns the currently active frame cursor (global or container...)
+    std::shared_ptr<Frame> GetCurrentFrame(); // Returns the frame that is currently active (global or container...)
 
     /***********************************************************
     *                    GLOBAL VARIABLES                      *
@@ -500,11 +520,15 @@ void tuim::Clear() {
     Context* ctx = tuim::GetCtx();
     ctx->m_PrevFrame = ctx->m_Frame;
     ctx->m_Frame = std::make_shared<Frame>();
-    ctx->m_Cursor = vec2(0, 0);
+    ctx->m_ItemsOrdered.clear();
+    ctx->m_Items.clear();
+    // std::stack<ItemId>().swap(ctx->m_ContainersStack);
 }
 
 void tuim::Display() {
-    // TODO: Keep track of the last frame to avoid flickering by clearing the whole terminal screen every frame.
+    if (!ctx->m_ContainersStack.empty())
+        throw std::runtime_error("error: container stack is not empty.");
+
     // tuim::Terminal::Clear();
     tuim::Terminal::SetCursorPos(vec2(0, 0));
 
@@ -625,10 +649,12 @@ void tuim::Terminal::ClearStyles() {
 
 tuim::Frame::Frame() {
     vec2 terminalSize = tuim::Terminal::GetTerminalSize();
+    m_Cursor = vec2(0, 0);
     m_Cells = std::vector<std::vector<std::shared_ptr<Cell>>>(terminalSize.y, std::vector<std::shared_ptr<Cell>>(terminalSize.x, nullptr));
 }
 
 tuim::Frame::Frame(const vec2& size) {
+    m_Cursor = vec2(0, 0);
     m_Cells = std::vector<std::vector<std::shared_ptr<Cell>>>(size.y, std::vector<std::shared_ptr<Cell>>(size.x, nullptr));
 }
 
@@ -668,6 +694,47 @@ void tuim::Frame::Clear() {
 }
 
 /***********************************************************
+*                       CONTAINERS                         *
+***********************************************************/
+
+void tuim::BeginContainer(std::string_view id, std::string_view label, const tuim::vec2& size) {
+    Context* ctx = tuim::GetCtx();
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Create the container object.
+    ItemId itemId = tuim::StringToId(id);
+    std::shared_ptr<Container> container = std::make_shared<Container>();
+    container->m_Id = itemId;
+    container->m_Size = size;
+    container->m_Pos = frame->m_Cursor;
+    container->m_Frame = std::make_shared<Frame>(size);
+
+    // Save the container to the context.
+    tuim::AddItem(container);
+    ctx->m_ContainersStack.push(itemId);
+}
+
+void tuim::EndContainer() {
+    Context* ctx = tuim::GetCtx();
+    
+    if (ctx->m_ContainersStack.empty())
+        throw std::out_of_range("error: cannot pop empty containers stack.");
+    
+    // Remove the current container from the stack.
+    ItemId itemId = ctx->m_ContainersStack.top();
+    ctx->m_ContainersStack.pop();
+        
+    // Retrieve the container object using its item id.
+    auto it = ctx->m_Items.find(itemId);
+    if (it == ctx->m_Items.end())
+        throw std::out_of_range("error: undefined container from stack.");
+    std::shared_ptr<Container> container = std::dynamic_pointer_cast<Container>(it->second);
+
+    // Merge the container frame with the new active frame.
+    tuim::MergeFrame(container->m_Frame);
+}
+
+/***********************************************************
 *                         ITEMS                            *
 ***********************************************************/
 
@@ -675,24 +742,25 @@ template <typename... Args> void tuim::Print(std::format_string<Args...> fmt, Ar
     std::string str = std::format(fmt, std::forward<Args>(args)...);
     // TODO: handle colors and styles.
     Context* ctx = tuim::GetCtx();
-    tuim::Utf8IterateString(str, [ctx](char32_t ch, size_t index) {
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+    tuim::Utf8IterateString(str, [ctx, frame](char32_t ch, size_t index) {
         if (ch == '\t') {
-            ctx->m_Cursor.x += 4;
+            frame->m_Cursor.x += 4;
         }
         else if (ch == '\n') {
-            ctx->m_Cursor = vec2(0, ctx->m_Cursor.y+1);
+            frame->m_Cursor = vec2(0, frame->m_Cursor.y+1);
         }
         else {
             uint8_t width = tuim::Utf8CharWidth(ch);
             if (width < 1)
                 return;
             if (width >= 1) {
-                ctx->m_Frame->Set(ctx->m_Cursor, std::make_shared<Cell>(ch));
-                ctx->m_Cursor.x++;
+                frame->Set(frame->m_Cursor, std::make_shared<Cell>(ch));
+                frame->m_Cursor.x++;
             }
             if (width == 2) {
-                ctx->m_Frame->Set(ctx->m_Cursor, nullptr);
-                ctx->m_Cursor.x++;
+                frame->Set(frame->m_Cursor, nullptr);
+                frame->m_Cursor.x++;
             }
         }
     });
@@ -783,6 +851,69 @@ void tuim::Utf8IterateString(std::string_view sv, std::function<void(char32_t, s
         func(ch, index);
         index += length;
     }
+}
+
+// http://www.cse.yorku.ca/~oz/hash.html
+tuim::ItemId tuim::StringToId(std::string_view sv) {
+    unsigned long hash = 5381;
+    for (size_t i = 0; i < sv.size(); i++)
+        hash = 33 * hash + (unsigned char) sv[i];
+    return hash;
+}
+
+/**********************************************************
+*                        CONTEXT                          *
+**********************************************************/
+
+void tuim::AddItem(std::shared_ptr<tuim::Item> item) {
+    Context* ctx = tuim::GetCtx();
+    ctx->m_ItemsOrdered.push_back(item);
+    ctx->m_Items.emplace(item->m_Id, item);
+}
+
+void tuim::MergeFrame(std::shared_ptr<tuim::Frame> src) {
+    std::shared_ptr<Frame> dst = tuim::GetCurrentFrame();
+    // TODO: should avoid calling Frame::GetSize() for performances.
+    // vec2 srcSize = src->GetSize();
+    // vec2 dstSize = src->GetSize();
+
+    // TODO: should auto resize dest frame only if it has the appropriate flag
+    //       or if it is the global frame.
+    // Resize vertically the dst frame if it is too small.
+    // if (dstSize.y < srcSize.y)
+    //     dst->m_Cells.resize(srcSize.y, std::vector<std::shared_ptr<Cell>>(srcSize.x, nullptr));
+
+    vec2 origin = dst->m_Cursor;
+
+    for (size_t y = 0; y < std::min(src->m_Cells.size(), dst->m_Cells.size() - origin.y); y++) {
+        
+        // Resize horizontally the dst line if it is too small.
+        // size_t srcLineSize = src->m_Cells[y].size();
+        // if (dst->m_Cells[y].size() <= srcLineSize)
+        //     dst->m_Cells[y].resize(srcLineSize, nullptr);
+
+        for (size_t x = 0; x < std::min(src->m_Cells[y].size(), dst->m_Cells[y].size() - origin.x); x++) {
+            dst->m_Cells[origin.y + y][origin.x + x] = src->m_Cells[y][x];
+        }
+    }
+
+    // Move the dest frame cursor to not overwrite when printing characters after merging.
+    dst->m_Cursor = vec2(0, origin.y + src->m_Cells.size());
+}
+
+tuim::vec2 tuim::GetCurrentCursor() {
+    return tuim::GetCurrentFrame()->m_Cursor;
+}
+
+std::shared_ptr<tuim::Frame> tuim::GetCurrentFrame() {
+    Context* ctx = tuim::GetCtx();
+    if (ctx->m_ContainersStack.empty())
+        return ctx->m_Frame;
+    ItemId itemId = ctx->m_ContainersStack.top();
+    auto it = ctx->m_Items.find(itemId);
+    if (it == ctx->m_Items.end())
+        throw std::out_of_range("error: undefined container from stack.");
+    return std::dynamic_pointer_cast<Container>(it->second)->m_Frame;
 }
 
 #endif // TUIM_HPP

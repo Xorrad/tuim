@@ -6,7 +6,7 @@ SignalHandler signalHandler;
 int main(int argc, char* argv[]) {    
     // Setup tuim settings.
     tuim::CreateContext(argc, argv);
-    tuim::SetTitle("tuim - text");
+    tuim::SetTitle("tuim - dev");
     tuim::SetFramerate(1.f);
 
     std::string str = "";
@@ -24,17 +24,24 @@ int main(int argc, char* argv[]) {
         // std::cout << std::hex << str.data() << std::endl;
 
         tuim::vec2 size = tuim::Terminal::GetTerminalSize();
-        tuim::Print("{}\n", (uint32_t) keyCode);
+        // tuim::Print("{}\n", (uint32_t) keyCode);
         tuim::Print("{}\n", str);
-        // for (int i = 0; i < size.y-1; i++) {
-        //     size_t n = rand() % 140;
-        //     tuim::Print("{}\t", std::string(n, '-'));
-        //     tuim::Print("{} {}\n", i, n);
-        // }
+        for (int i = 0; i < size.y-20; i++) {
+            size_t n = rand() % 140;
+            tuim::Print("{}\t", std::string(n, '-'));
+            tuim::Print("{} {}\n", i, n);
+        }
         tuim::Print("line 1\t\tline1\tline1\nline 2\nline 3\n");
         tuim::Print("你\t好\n");
         tuim::Print("😃\t😃\n");
-        tuim::Print("terminal size: {} {}", size.x, size.y);
+        tuim::Print("terminal size: {} {}\n", size.x, size.y);
+
+        tuim::BeginContainer("#container1", "", tuim::vec2(10, 10));
+        tuim::BeginContainer("#container2", "", tuim::vec2(10, 10));
+        tuim::Print("text inside the container 2\n");
+        tuim::EndContainer();
+        tuim::Print("text inside the container 1\n");
+        tuim::EndContainer();
 
         tuim::Display();
 
