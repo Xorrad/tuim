@@ -205,6 +205,7 @@ namespace tuim {
 
     enum ContainerFlags : uint32_t {
         CONTAINER_FLAGS_NONE = 0,
+        CONTAINER_FLAGS_BORDERLESS = 1 << 0,
     };
     //
 
@@ -298,15 +299,17 @@ namespace tuim {
 
     class Container : public Item {
     public:
-        Container() : Item(), m_Flags(CONTAINER_FLAGS_NONE), m_Frame(nullptr) {}
+        Container() : Item(), m_ContainerFlags(CONTAINER_FLAGS_NONE), m_Frame(nullptr) {}
         ~Container() = default;
 
-        ContainerFlags m_Flags;
+        ContainerFlags m_ContainerFlags;
         std::shared_ptr<Frame> m_Frame;
     };
 
-    void BeginContainer(std::string_view id, std::string_view label, const vec2& size);
+    void BeginContainer(std::string_view id, std::string_view label, vec2 size, ContainerFlags flags = CONTAINER_FLAGS_NONE);
     void EndContainer();
+
+    void MergeContainer(std::shared_ptr<Container> container); // Merge a given container into the current context frame (can be global or another container).
 
     /***********************************************************
     *                         ITEMS                            *
@@ -351,6 +354,7 @@ namespace tuim {
     void AddItem(std::shared_ptr<Item> item);
     void MergeFrame(std::shared_ptr<Frame> frame); // Merge a given frame into the current context frame (can be global or a container).
     
+    void SetCurrentCursor(const vec2& cursor); // Changes the position of the current frame's cursor.
     vec2 GetCurrentCursor(); // Returns the currently active frame cursor (global or container...)
     std::shared_ptr<Frame> GetCurrentFrame(); // Returns the frame that is currently active (global or container...)
 
@@ -517,9 +521,11 @@ void tuim::Update(char32_t keyCode) {
 }
 
 void tuim::Clear() {
+    vec2 terminalSize = tuim::Terminal::GetTerminalSize();
     Context* ctx = tuim::GetCtx();
+
     ctx->m_PrevFrame = ctx->m_Frame;
-    ctx->m_Frame = std::make_shared<Frame>();
+    ctx->m_Frame = std::make_shared<Frame>(terminalSize);
     ctx->m_ItemsOrdered.clear();
     ctx->m_Items.clear();
     // std::stack<ItemId>().swap(ctx->m_ContainersStack);
@@ -534,10 +540,12 @@ void tuim::Display() {
 
     Context* ctx = tuim::GetCtx();
     vec2 terminalSize = tuim::Terminal::GetTerminalSize();
-    vec2 frameSize = ctx->m_Frame->GetSize();
     vec2 prevPos = vec2(-1, 0);
+    
+    size_t frameHeight = ctx->m_Frame->m_Cells.size();
+    size_t displayHeight = std::min(frameHeight, (size_t) terminalSize.y);
 
-    for (size_t y = 0; y < std::min(frameSize.y, terminalSize.y-1); y++) {
+    for (size_t y = 0; y < displayHeight; y++) {
         size_t lineWidth = std::min(
             std::max(
                 ctx->m_Frame->m_Cells[y].size(),
@@ -575,7 +583,7 @@ void tuim::Display() {
             tuim::Terminal::ClearLineEnd();
         }
         // Print a new line to the terminal for every line except the last one.
-        if (y != frameSize.y-1) {
+        if (y != displayHeight-1) {
             std::cout << '\n';
             prevPos = vec2(-1, y+1);
         }
@@ -680,9 +688,9 @@ bool tuim::Frame::Has(size_t x, size_t y) const {
 void tuim::Frame::Set(const tuim::vec2& pos, std::shared_ptr<tuim::Cell> cell) {
     // Make sure to resize the vectors in case the position is
     // beyond the column or line size.
-    if (m_Cells.size() <= pos.y)
+    if (pos.y >= m_Cells.size())
         m_Cells.resize(pos.y+1, std::vector<std::shared_ptr<Cell>>(pos.x, nullptr));
-    if (m_Cells[pos.y].size() <= pos.x)
+    if (pos.x >= m_Cells[pos.y].size())
         m_Cells[pos.y].resize(pos.x+1, nullptr);
     m_Cells[pos.y][pos.x] = cell;
 }
@@ -697,14 +705,19 @@ void tuim::Frame::Clear() {
 *                       CONTAINERS                         *
 ***********************************************************/
 
-void tuim::BeginContainer(std::string_view id, std::string_view label, const tuim::vec2& size) {
+void tuim::BeginContainer(std::string_view id, std::string_view label, tuim::vec2 size, ContainerFlags flags) {
     Context* ctx = tuim::GetCtx();
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Make sure that the size is positive.
+    if (size.x < 0) size.x = 0;
+    if (size.y < 0) size.y = 0;
 
     // Create the container object.
     ItemId itemId = tuim::StringToId(id);
     std::shared_ptr<Container> container = std::make_shared<Container>();
     container->m_Id = itemId;
+    container->m_ContainerFlags = flags;
     container->m_Size = size;
     container->m_Pos = frame->m_Cursor;
     container->m_Frame = std::make_shared<Frame>(size);
@@ -730,8 +743,97 @@ void tuim::EndContainer() {
         throw std::out_of_range("error: undefined container from stack.");
     std::shared_ptr<Container> container = std::dynamic_pointer_cast<Container>(it->second);
 
-    // Merge the container frame with the new active frame.
-    tuim::MergeFrame(container->m_Frame);
+    // Merge the container with the new active container or global frame.
+    tuim::MergeContainer(container);
+}
+
+void tuim::MergeContainer(std::shared_ptr<tuim::Container> container) {
+    std::shared_ptr<Frame> src = container->m_Frame;
+    std::shared_ptr<Frame> dst = tuim::GetCurrentFrame();
+    
+    bool hasBorder = !(container->m_ContainerFlags & CONTAINER_FLAGS_BORDERLESS);
+
+    vec2 origin = dst->m_Cursor;
+
+    // Relative heights of the frames.
+    size_t dstHeight = dst->m_Cells.size() - origin.y;
+
+    // Size of the source container, including the borders.
+    size_t containerWidth = container->m_Size.x + 2*hasBorder;
+    size_t containerHeight = container->m_Size.y + 2*hasBorder;
+
+    auto GetRowSize = [&](int y) { return dst->m_Cells[y].size(); };
+    auto SetCell = [&](int x, int y, char32_t ch) { dst->m_Cells[y][x] = std::make_shared<Cell>(ch); };
+
+    // Surround the container frame with a border if it does not have the borderless flags.
+    if (hasBorder) {
+        // TODO: check for pre-existing borders.
+
+        // Coordinates of the end of the src container (origin + size).
+        size_t maxX = origin.x + containerWidth - 1;
+        size_t maxY = origin.y + containerHeight - 1;
+
+        bool canWriteFirstRow = dstHeight >= 1;
+        bool canWriteLastRow = dstHeight >= containerHeight;
+
+        // Draw top-left corner.
+        if (canWriteFirstRow && GetRowSize(origin.y) > origin.x)
+            SetCell(origin.x, origin.y, U'+');
+
+        // Draw top-right corner.
+        if (canWriteFirstRow && GetRowSize(origin.y) > maxX)
+            SetCell(maxX, origin.y, U'+');
+
+        // Draw bottom-left corner.
+        if (canWriteLastRow && GetRowSize(maxY) > origin.x)
+            SetCell(origin.x, maxY, U'+');
+
+        // Draw bottom-right corner.
+        if (canWriteLastRow && GetRowSize(maxY) > maxX)
+            SetCell(maxX, maxY, U'+');
+
+        // Draw top and bottom borders.
+        for (size_t x = 1; x < containerWidth-1; x++) {
+            if (canWriteFirstRow && GetRowSize(origin.y) > origin.x + x)
+                SetCell(origin.x + x, origin.y, U'-');
+            if (canWriteLastRow && GetRowSize(maxY) > origin.x + x)
+                SetCell(origin.x + x, maxY, U'-');
+        }
+        
+        // Draw left and right borders.
+        for (size_t y = 1; y < containerHeight-1; y++) {
+            if (dstHeight > y && GetRowSize(origin.y + y) > origin.x)
+                SetCell(origin.x, origin.y + y, U'|');
+            if (dstHeight > y && GetRowSize(origin.y + y) > maxX)
+                SetCell(maxX, origin.y + y, U'|');
+        }
+    }
+
+    // Move the origin to not overwrite the border.
+    vec2 contentOrigin = vec2(origin.x + hasBorder, origin.y + hasBorder);
+
+    size_t minY = std::min({
+        containerHeight - 2*hasBorder, // Height of the container (without borders).
+        src->m_Cells.size(), // Height of source frame.
+        (size_t) std::max(0, (int) dst->m_Cells.size() - contentOrigin.y) // Relative height of dest frame.
+    });
+
+    // Merge source frame characters into the dest frame.
+    for (size_t y = 0; y < minY; y++) {
+        
+        size_t minX = std::min({
+            containerWidth - 2*hasBorder, // Width of the container (without borders).
+            src->m_Cells[y].size(), // Width of source frame.
+            (size_t) std::max(0, (int) dst->m_Cells[contentOrigin.y + y].size() - contentOrigin.x) // Relative width of dest frame.
+        });
+
+        for (size_t x = 0; x < minX; x++) {
+            dst->m_Cells[contentOrigin.y + y][contentOrigin.x + x] = src->m_Cells[y][x];
+        }
+    }
+
+    // Move the dest frame cursor to not overwrite when printing characters after merging.
+    dst->m_Cursor = vec2(origin.x, origin.y + containerHeight);
 }
 
 /***********************************************************
@@ -899,6 +1001,10 @@ void tuim::MergeFrame(std::shared_ptr<tuim::Frame> src) {
 
     // Move the dest frame cursor to not overwrite when printing characters after merging.
     dst->m_Cursor = vec2(0, origin.y + src->m_Cells.size());
+}
+
+void tuim::SetCurrentCursor(const tuim::vec2& cursor) {
+    tuim::GetCurrentFrame()->m_Cursor = cursor;
 }
 
 tuim::vec2 tuim::GetCurrentCursor() {
