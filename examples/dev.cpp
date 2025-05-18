@@ -51,6 +51,10 @@ int main(int argc, char* argv[]) {
         tuim::Print("container width: {}\n", containerWidth);
         tuim::Print("container height: {}\n", containerHeight);
 
+        std::string_view colorSv = "#_ff00ff";
+        tuim::Color color = tuim::StringToColor(colorSv);
+        tuim::Print("color:  {} -> ({},{},{}) {}\n", colorSv, color.r, color.g, color.b, color.bg);
+
         tuim::vec2 container2Pos = tuim::GetCurrentCursor();
         container2Pos.x += 10;
         tuim::BeginContainer("#container2", "", tuim::vec2(4, 5));

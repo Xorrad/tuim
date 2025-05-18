@@ -197,7 +197,16 @@ namespace tuim {
     *                         COLORS                           *
     ***********************************************************/
 
-    //
+    struct Color {
+        uint8_t r, g, b;
+        bool bg;
+
+        Color() : r(0), g(0), b(0), bg(false) {}
+        Color(uint8_t r, uint8_t g, uint8_t b, bool bg = false) : r(r), g(g), b(b), bg(bg) {}
+    };
+    
+    Color StringToColor(std::string_view sv); // Returns the color of a formatted string.
+    std::string ColorToAnsi(const Color& color); // Returns the ANSI escape sequence for a given color.
 
     /***********************************************************
     *                         FLAGS                            *
@@ -463,6 +472,50 @@ bool tuim::IsKeyPressed() {
 bool tuim::IsKeyPressed(tuim::Key key) {
     Context* ctx = tuim::GetCtx();
     return static_cast<tuim::Key>(ctx->m_PressedKeyCode) == key;
+}
+
+/***********************************************************
+*                         COLORS                           *
+***********************************************************/
+
+tuim::Color tuim::StringToColor(std::string_view sv) {
+    Color color(255, 255, 255);
+
+    if (sv.size() < 2)
+        return color;
+
+    // Check if there is the background character.
+    color.bg = (sv[1] == '_');
+    
+    // Remove the format and background characters.
+    sv.remove_prefix(1 + color.bg);
+
+    // Determine how the color is formatted (hex or code).
+    // Parse the color as a style code defined by the user.
+    if (sv.front() == '&') {
+        return color;
+    }
+
+    // Otherwise, parse the color as an hex.
+    try {
+        unsigned long hex = std::stoul(sv.data(), nullptr, 16);
+        color.r = static_cast<uint8_t>((hex >> 16) & 0xFF);
+        color.g = static_cast<uint8_t>((hex >> 8) & 0xFF);
+        color.b = static_cast<uint8_t>(hex & 0xFF);
+    }
+    catch (std::exception& e) {}
+
+    return color;
+}
+
+std::string tuim::ColorToAnsi(const tuim::Color& color) {
+    return std::format(
+        "\33[{};2;{};{};{}m",
+        (color.bg ? "48" : "38"),
+        color.r,
+        color.g,
+        color.b
+    );
 }
 
 /***********************************************************
@@ -843,6 +896,7 @@ void tuim::MergeContainer(std::shared_ptr<tuim::Container> container) {
 template <typename... Args> void tuim::Print(std::format_string<Args...> fmt, Args&&... args) {
     std::string str = std::format(fmt, std::forward<Args>(args)...);
     // TODO: handle colors and styles.
+
     Context* ctx = tuim::GetCtx();
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
     tuim::Utf8IterateString(str, [ctx, frame](char32_t ch, size_t index) {
