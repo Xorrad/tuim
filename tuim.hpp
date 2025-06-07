@@ -30,6 +30,7 @@ namespace tuim {
 #include <memory> // std::shared_ptr, std::unique_ptr...
 #include <locale> // setlocale
 #include <unordered_map> // std::unordered_map
+#include <optional> // std::optional
 
 #ifdef __linux__
 #include <unistd.h> // STDOUT_FILENO
@@ -203,11 +204,63 @@ namespace tuim {
 
         Color() : r(0), g(0), b(0), bg(false) {}
         Color(uint8_t r, uint8_t g, uint8_t b, bool bg = false) : r(r), g(g), b(b), bg(bg) {}
+
+        bool operator==(const Color &other) const {
+            return r == other.r && g == other.g && b == other.b && bg == other.bg;
+        }
+
+        bool operator!=(const Color &other) const {
+            return r != other.r || g != other.g || b != other.b || bg != other.bg;
+        }
     };
-    
+
     Color StringToColor(std::string_view sv); // Returns the color of a formatted string.
     std::string ColorToAnsi(const Color& color); // Returns the ANSI escape sequence for a given color.
 
+    /***********************************************************
+    *                         STYLE                            *
+    ***********************************************************/
+   
+    enum class Style : uint32_t {
+        NONE          = 0,
+        BOLD          = 1 << 0,
+        FAINT         = 1 << 1,
+        ITALIC        = 1 << 2,
+        UNDERLINE     = 1 << 3,
+        BLINKING      = 1 << 4,
+        REVERSE       = 1 << 5,
+        HIDDEN        = 1 << 6,
+        STRIKETHROUGH = 1 << 7
+    };
+
+    Style operator|(Style a, Style b) {
+        return static_cast<Style>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
+    }
+    
+    Style operator&(Style a, Style b) {
+        return static_cast<Style>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
+    }
+    
+    Style operator^(Style a, Style b) {
+        return static_cast<Style>(static_cast<uint32_t>(a) ^ static_cast<uint32_t>(b));
+    }
+    
+    Style& operator|=(Style& a, Style b) {
+        a = static_cast<Style>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
+        return a;
+    }
+    
+    Style& operator&=(Style& a, Style b) {
+        a = static_cast<Style>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
+        return a;
+    }
+
+    Style operator~(Style a) {
+        return static_cast<Style>(~static_cast<uint32_t>(a));
+    }
+
+    std::string StyleToAnsi(Style style); // Returns the ANSI escape sequence for a given set of styles.
+   
     /***********************************************************
     *                         FLAGS                            *
     ***********************************************************/
@@ -216,7 +269,6 @@ namespace tuim {
         CONTAINER_FLAGS_NONE = 0,
         CONTAINER_FLAGS_BORDERLESS = 1 << 0,
     };
-    //
 
     /***********************************************************
     *                   CONTEXT FUNCTIONS                      *
@@ -231,6 +283,10 @@ namespace tuim {
     void SetCursorVisibility(bool visible); // Change the cursor visibility
     void SetFullscreen(bool fullscreen); // Change the terminal to full screen
     void SetFramerate(float framerate); // Change the delay between two frame are calculated and drawn
+
+    void DefineStyle(char tag, Style style);
+    void DefineForeground(char tag, Color color);
+    void DefineBackground(char tag, Color color);
 
     void Update(char32_t keyCode); // Update the frame depending on the key pressed
     void Clear(); // Clear the current frame buffer
@@ -264,11 +320,24 @@ namespace tuim {
     class Cell {
     public:
         Cell();
-        Cell(char32_t ch) : m_Character(ch) {}
+        Cell(char32_t ch, Style style = Style()) : m_Character(ch), m_Style(style) {}
         ~Cell() = default;
 
+        bool operator==(const Cell& other) const {
+            return m_Character == other.m_Character &&
+                   m_Style == other.m_Style &&
+                   m_Foreground == other.m_Foreground &&
+                   m_Background == other.m_Background;
+        }
+
+        bool operator!=(const Cell& other) const {
+            return !(*this == other);
+        }
+
         char32_t m_Character;
-        // TODO: add attributes such as fg color, bg color, bold, italic...
+        Style m_Style;
+        std::optional<Color> m_Foreground;
+        std::optional<Color> m_Background;
     };
 
     class Frame {
@@ -348,6 +417,10 @@ namespace tuim {
             m_PressedKeyCode = 0;
             m_Frame = std::make_shared<Frame>();
             m_PrevFrame = nullptr;
+
+            m_CurrentForeground = std::nullopt;
+            m_CurrentBackground = std::nullopt;
+            m_CurrentStyle = Style::NONE;
         }
         ~Context() = default;
 
@@ -358,6 +431,16 @@ namespace tuim {
         std::vector<std::shared_ptr<Item>> m_ItemsOrdered; // Insertion order of items.
         std::unordered_map<ItemId, std::shared_ptr<Item>> m_Items; // Mapped addresses of the frame items.
         std::stack<ItemId> m_ContainersStack;
+
+        // Current active styles applied during Print operations
+        std::optional<Color> m_CurrentForeground;
+        std::optional<Color> m_CurrentBackground;
+        Style m_CurrentStyle;
+
+        // User-defined style maps.
+        std::unordered_map<char, Style> m_UserStyles;
+        std::unordered_map<char, Color> m_UserForegrounds;
+        std::unordered_map<char, Color> m_UserBackgrounds;
     };
 
     void AddItem(std::shared_ptr<Item> item);
@@ -519,6 +602,23 @@ std::string tuim::ColorToAnsi(const tuim::Color& color) {
 }
 
 /***********************************************************
+*                         STYLE                            *
+***********************************************************/
+
+std::string tuim::StyleToAnsi(Style style) {
+    std::string str;
+    if ((style & Style::BOLD) == Style::BOLD) str += "\033[1m";
+    if ((style & Style::FAINT) == Style::FAINT) str += "\033[2m";
+    if ((style & Style::ITALIC) == Style::ITALIC) str += "\033[3m";
+    if ((style & Style::UNDERLINE) == Style::UNDERLINE) str += "\033[4m";
+    if ((style & Style::BLINKING) == Style::BLINKING) str += "\033[5m";
+    if ((style & Style::REVERSE) == Style::REVERSE) str += "\033[7m";
+    if ((style & Style::HIDDEN) == Style::HIDDEN) str += "\033[8m";
+    if ((style & Style::STRIKETHROUGH) == Style::STRIKETHROUGH) str += "\033[9m";
+    return str;
+}
+
+/***********************************************************
 *                    CONTEXT FUNCTIONS                     *
 ***********************************************************/
 
@@ -566,6 +666,21 @@ void tuim::SetFramerate(float framerate) {
     ctx->m_Framerate = framerate;
 }
 
+void tuim::DefineStyle(char tag, Style style) {
+    Context* ctx = tuim::GetCtx();
+    ctx->m_UserStyles[tag] = style;
+}
+
+void tuim::DefineForeground(char tag, Color color) {
+    Context* ctx = tuim::GetCtx();
+    ctx->m_UserForegrounds[tag] = color;
+}
+
+void tuim::DefineBackground(char tag, Color color) {
+    Context* ctx = tuim::GetCtx();
+    ctx->m_UserBackgrounds[tag] = color;
+}
+
 void tuim::Update(char32_t keyCode) {
     Context* ctx = tuim::GetCtx();
     ctx->m_PressedKeyCode = keyCode;
@@ -581,7 +696,10 @@ void tuim::Clear() {
     ctx->m_Frame = std::make_shared<Frame>(terminalSize);
     ctx->m_ItemsOrdered.clear();
     ctx->m_Items.clear();
-    // std::stack<ItemId>().swap(ctx->m_ContainersStack);
+
+    ctx->m_CurrentForeground = std::nullopt;
+    ctx->m_CurrentBackground = std::nullopt;
+    ctx->m_CurrentStyle = Style::NONE;
 }
 
 void tuim::Display() {
@@ -589,6 +707,7 @@ void tuim::Display() {
         throw std::runtime_error("error: container stack is not empty.");
 
     // tuim::Terminal::Clear();
+    tuim::Terminal::ClearStyles();
     tuim::Terminal::SetCursorPos(vec2(0, 0));
 
     Context* ctx = tuim::GetCtx();
@@ -597,6 +716,11 @@ void tuim::Display() {
     
     size_t frameHeight = ctx->m_Frame->m_Cells.size();
     size_t displayHeight = std::min(frameHeight, (size_t) terminalSize.y);
+
+    // Current ANSI styles actually applied to the terminal to avoid redundant codes.
+    std::optional<Color> currentForeground = std::nullopt;
+    std::optional<Color> currentBackground = std::nullopt;
+    Style currentStyle = Style::NONE;
 
     for (size_t y = 0; y < displayHeight; y++) {
         size_t lineWidth = std::min(
@@ -610,12 +734,56 @@ void tuim::Display() {
             std::shared_ptr<Cell> cell = (ctx->m_Frame->Has(x, y) ? ctx->m_Frame->Get(x, y) : nullptr);
             std::shared_ptr<Cell> prevCell = (ctx->m_PrevFrame != nullptr && ctx->m_PrevFrame->Has(x, y) ? ctx->m_PrevFrame->Get(x, y) : nullptr);
 
-            // Print a character only if it is different that during the previous frame.
-            if (cell != prevCell || (cell != nullptr && prevCell != nullptr && cell->m_Character != prevCell->m_Character)) {
-                // Set cursor to pixel if consecutives characters have not been changed since the previous frame.
+            // Compare cells, including character and all style attributes.
+            // bool cellChanged = (cell == nullptr && prevCell != nullptr) ||
+            //                     (cell != nullptr && prevCell == nullptr) ||
+            //                     (cell != nullptr && prevCell != nullptr && *cell != *prevCell);
+            bool cellChanged = true;
+            
+            if (cellChanged) {
+                // Set cursor to pixel if consecutive characters have not been changed since the previous frame,
+                // or if there's a jump in position.
                 if (prevPos.x != x-1) {
                     tuim::Terminal::SetCursorPos(vec2(x, y));
                 }
+
+                // Apply ANSI styles if current cell's effective style differs from applied style
+                // This logic is crucial for efficiency and correct terminal state.
+                std::string ansi;
+
+                // If the new cell is null (empty), reset all styles to default for the space.
+                if (cell == nullptr) {
+                    if (currentForeground.has_value() || currentBackground.has_value() || currentStyle != Style::NONE) {
+                        ansi += "\033[0m"; // Reset all attributes
+                        currentForeground = std::nullopt;
+                        currentBackground = std::nullopt;
+                        currentStyle = Style::NONE;
+                    }
+                }
+                else {
+                    if (cell->m_Foreground != currentForeground || cell->m_Background != currentBackground || cell->m_Style != currentStyle) {
+                        ansi += "\033[0m"; // Reset all attributes.
+                        currentForeground = std::nullopt;
+                        currentBackground = std::nullopt;
+                        currentStyle = Style::NONE;
+
+                        // Re-apply styles and colors for the new cell.
+                        if (cell->m_Foreground.has_value()) {
+                            ansi += tuim::ColorToAnsi(cell->m_Foreground.value());
+                            currentForeground = cell->m_Foreground;
+                        }
+                        if (cell->m_Background.has_value()) {
+                            ansi += tuim::ColorToAnsi(cell->m_Background.value());
+                            currentBackground = cell->m_Background;
+                        }
+                        ansi += tuim::StyleToAnsi(cell->m_Style);
+                        currentStyle = cell->m_Style;
+                    }
+                }
+
+                // Print accumulated ANSI color and style codes.
+                std::cout << ansi;
+
                 // Replace the previous character by the new one.
                 if (cell == nullptr) {
                     std::cout << ' ';
@@ -623,24 +791,36 @@ void tuim::Display() {
                 }
                 else {
                     uint8_t width = tuim::Utf8CharWidth(cell->m_Character);
+                    // Increment x for wide characters to account for the second column.
                     if (width == 2)
                         x++;
-                    std::cout << Utf8Char32ToString(cell->m_Character);
+                    std::cout << tuim::Utf8Char32ToString(cell->m_Character);
                     prevPos = vec2(x, y);
                 }
             }
         }
-        // Clear the remaining of the line.
+        
+        // Clear the remaining of the line and reset styles at the end of the line.
+        // Also reset styles to default so that newlines or next lines start clean.
+        // If the line width is less than terminal width, clear the rest of the line.
         if (lineWidth < terminalSize.x-1) {
+            tuim::Terminal::ClearStyles();
             std::cout << ' ';
             tuim::Terminal::ClearLineEnd();
+
+            currentForeground = std::nullopt;
+            currentBackground = std::nullopt;
+            currentStyle = Style::NONE;
         }
+
         // Print a new line to the terminal for every line except the last one.
         if (y != displayHeight-1) {
             std::cout << '\n';
             prevPos = vec2(-1, y+1);
         }
     }
+
+    tuim::Terminal::ClearStyles();
     tuim::Terminal::ClearEnd();
     std::cout << std::flush;
 }
@@ -895,31 +1075,137 @@ void tuim::MergeContainer(std::shared_ptr<tuim::Container> container) {
 
 template <typename... Args> void tuim::Print(std::format_string<Args...> fmt, Args&&... args) {
     std::string str = std::format(fmt, std::forward<Args>(args)...);
-    // TODO: handle colors and styles.
 
     Context* ctx = tuim::GetCtx();
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
-    tuim::Utf8IterateString(str, [ctx, frame](char32_t ch, size_t index) {
-        if (ch == '\t') {
-            frame->m_Cursor.x += 4;
+
+    // Retrieve the current active styles from context.
+    std::optional<Color> currentForeground = ctx->m_CurrentForeground;
+    std::optional<Color> currentBackground = ctx->m_CurrentBackground;
+    Style currentStyle = ctx->m_CurrentStyle;
+
+    // Function to apply the current styles and colors to a Cell object.
+    auto CopyStylesToCell = [&](std::shared_ptr<Cell>& cell) {
+        cell->m_Foreground = currentForeground;
+        cell->m_Background = currentBackground;
+        cell->m_Style = currentStyle;
+    };
+
+    size_t i = 0;
+    while (i < str.length()) {
+        char c = str[i];
+        if (c == '#') {
+            // Possible hex color: #rrggbb or #_rrggbb.
+            bool isBackground = (i + 1 < str.length() && str[i+1] == '_');
+            size_t codeSize = 1 + isBackground + 6;
+
+            // Check if there are enough characters for a hex code (6 characters).
+            if (i + codeSize <= str.length()) {
+                std::string_view code(str.data() + i, codeSize);
+                Color newColor = tuim::StringToColor(code);
+                if (isBackground) currentBackground = newColor;
+                else currentForeground = newColor;
+
+                // Move past the style code.
+                i += codeSize;
+                continue;
+            }
         }
+        else if (c == '&') {
+            if (i + 1 < str.length()) {
+                char tag = str[i+1];
+
+                // Check for '&r' first, as it's a special reset tag.
+                if (tag == 'r') {
+                    currentForeground = std::nullopt;
+                    currentBackground = std::nullopt;
+                    currentStyle = Style::NONE;
+                    
+                    // Consume '&r'.
+                    i += 2;
+                    continue;
+                }
+
+                // Check user-defined styles
+                auto styleIt = ctx->m_UserStyles.find(tag);
+                if (styleIt != ctx->m_UserStyles.end()) {
+                    currentStyle |= styleIt->second;
+
+                    // Consume '&' + tag character.
+                    // Continue to the next part of the string after a successful tag match.
+                    i += 2;
+                    continue;
+                }
+                
+                // Check user-defined foreground colors
+                auto fgIt = ctx->m_UserForegrounds.find(tag);
+                if (fgIt != ctx->m_UserForegrounds.end()) {
+                    currentForeground = fgIt->second;
+                    
+                    // Consume '&' + tag character.
+                    // Continue to the next part of the string after a successful tag match.
+                    i += 2;
+                    continue;
+                }
+
+                // Check user-defined background colors
+                auto bgIt = ctx->m_UserBackgrounds.find(tag);
+                if (bgIt != ctx->m_UserBackgrounds.end()) {
+                    currentBackground = bgIt->second;
+                    
+                    // Consume '&' + tag character.
+                    // Continue to the next part of the string after a successful tag match.
+                    i += 2;
+                    continue;
+                }
+            }
+        }
+
+        // Handle regular characters (not style tags)
+        uint8_t charLength = tuim::Utf8CharLength(c);
+        if (charLength == 0 || i + charLength > str.length()) {
+            // Invalid UTF-8 sequence, treat as single byte and advance.
+            charLength = 1;
+        }
+        char32_t ch = tuim::Utf8Decode(str.data() + i, charLength);
+
+        // tab: advance cursor by 4, filling with space cells that have current styles.
+        if (ch == '\t') {
+            for (int k = 0; k < 4; k++) {
+                // Ensure we don't write beyond the terminal width.
+                if (frame->m_Cursor.x >= tuim::Terminal::GetTerminalSize().x)
+                    break;
+                std::shared_ptr<Cell> cell = std::make_shared<Cell>(U' ');
+                CopyStylesToCell(cell);
+                frame->Set(frame->m_Cursor, cell);
+                frame->m_Cursor.x++;
+            }
+        }
+        // new line: move cursor to beginning of next line.
         else if (ch == '\n') {
-            frame->m_Cursor = vec2(0, frame->m_Cursor.y+1);
+            frame->m_Cursor.x = 0;
+            frame->m_Cursor.y++;
         }
         else {
-            uint8_t width = tuim::Utf8CharWidth(ch);
-            if (width < 1)
-                return;
-            if (width >= 1) {
-                frame->Set(frame->m_Cursor, std::make_shared<Cell>(ch));
-                frame->m_Cursor.x++;
-            }
-            if (width == 2) {
-                frame->Set(frame->m_Cursor, nullptr);
-                frame->m_Cursor.x++;
+            // Regular printable character
+            // Ensure we don't write beyond the terminal boundaries
+            if (frame->m_Cursor.x < tuim::Terminal::GetTerminalSize().x && frame->m_Cursor.y < tuim::Terminal::GetTerminalSize().y) {
+                std::shared_ptr<Cell> cell = std::make_shared<Cell>(ch);
+                CopyStylesToCell(cell);
+                frame->Set(frame->m_Cursor, cell);
+
+                uint8_t width = tuim::Utf8CharWidth(ch);
+                frame->m_Cursor.x += width;
             }
         }
-    });
+        i += charLength; // Move to the next UTF-8 character
+    }
+
+    // After processing the entire string, update the context's current styles.
+    // This ensures that subsequent Print calls inherit the styles active at the end of this Print.
+    ctx->m_CurrentForeground = currentForeground;
+    ctx->m_CurrentBackground = currentBackground;
+    ctx->m_CurrentStyle = currentStyle;
 }
 
 /***********************************************************
@@ -943,14 +1229,17 @@ std::string tuim::Utf8Char32ToString(char32_t ch) {
     std::string str = "";
     if (ch <= 0x7F) {
         str += static_cast<char>(ch);
-    } else if (ch <= 0x7FF) {
+    }
+    else if (ch <= 0x7FF) {
         str += static_cast<char>(0xC0 | (ch >> 6));
         str += static_cast<char>(0x80 | (ch & 0x3F));
-    } else if (ch <= 0xFFFF) {
+    }
+    else if (ch <= 0xFFFF) {
         str += static_cast<char>(0xE0 | (ch >> 12));
         str += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
         str += static_cast<char>(0x80 | (ch & 0x3F));
-    } else if (ch <= 0x10FFFF) {
+    }
+    else if (ch <= 0x10FFFF) {
         str += static_cast<char>(0xF0 | (ch >> 18));
         str += static_cast<char>(0x80 | ((ch >> 12) & 0x3F));
         str += static_cast<char>(0x80 | ((ch >> 6) & 0x3F));
@@ -991,7 +1280,8 @@ void tuim::Utf8IterateString(std::string_view sv, std::function<void(char32_t, s
         char8_t lead = static_cast<char8_t>(sv[index]);
         if (length == 1) {
             ch = lead;
-        } else {
+        }
+        else {
             ch = lead & ((1 << (7 - length)) - 1); // Mask initial bits.
             for (size_t i = 1; i < length; ++i) {
                 char8_t cont = static_cast<char8_t>(sv[index + i]);
