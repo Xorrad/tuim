@@ -265,6 +265,12 @@ namespace tuim {
     *                         FLAGS                            *
     ***********************************************************/
 
+    enum ItemFlags : uint32_t {
+        ITEM_FLAGS_NONE        = 0,
+        ITEM_FLAGS_DISABLED    = 1 << 0,
+        ITEM_FLAGS_STAY_ACTIVE = 1 << 1,
+    };
+    
     enum ContainerFlags : uint32_t {
         CONTAINER_FLAGS_NONE = 0,
         CONTAINER_FLAGS_BORDERLESS = 1 << 0,
@@ -362,14 +368,25 @@ namespace tuim {
     ***********************************************************/
 
     class Item {
-        public:
-            Item() : m_Id(0), m_Size(vec2(0, 0)), m_Pos(vec2(0, 0)) {}
-            virtual ~Item() = default;
-    
-            ItemId m_Id;
-            vec2 m_Size;
-            vec2 m_Pos;
-        };
+    public:
+        Item() : m_Id(0), m_Size(vec2(0, 0)), m_Pos(vec2(0, 0)), m_Flags(ITEM_FLAGS_NONE) {}
+        virtual ~Item() = default;
+
+        ItemId m_Id;
+        vec2 m_Size;
+        vec2 m_Pos;
+        ItemFlags m_Flags;
+    };
+
+    ItemId GetCurrentItemId();
+    uint32_t GetItemIndex(ItemId id);
+    uint32_t getHoveredItemIndex();
+    bool WasItemActive();
+    bool IsItemActive();
+    bool IsItemHovered();
+    void SetActiveItemId(ItemId id);
+    void SetHoveredItemId(ItemId id);
+    bool HasHoverable();
 
     /***********************************************************
     *                       CONTAINERS                         *
@@ -418,6 +435,10 @@ namespace tuim {
             m_Frame = std::make_shared<Frame>();
             m_PrevFrame = nullptr;
 
+            m_HoveredItemId = 0;
+            m_ActiveItemId = 0;
+            m_LastActiveItemId = 0;
+
             m_CurrentForeground = std::nullopt;
             m_CurrentBackground = std::nullopt;
             m_CurrentStyle = Style::NONE;
@@ -431,6 +452,9 @@ namespace tuim {
         std::vector<std::shared_ptr<Item>> m_ItemsOrdered; // Insertion order of items.
         std::unordered_map<ItemId, std::shared_ptr<Item>> m_Items; // Mapped addresses of the frame items.
         std::stack<ItemId> m_ContainersStack;
+        ItemId m_HoveredItemId; // Id of the item hovered during current frame.
+        ItemId m_ActiveItemId; // Id of the active item during current frame.
+        ItemId m_LastActiveItemId; // Id of the active item during last frame
 
         // Current active styles applied during Print operations
         std::optional<Color> m_CurrentForeground;
@@ -684,8 +708,55 @@ void tuim::DefineBackground(char tag, Color color) {
 void tuim::Update(char32_t keyCode) {
     Context* ctx = tuim::GetCtx();
     ctx->m_PressedKeyCode = keyCode;
-    
-    // TODO: implement update function.
+
+    if(ctx->m_ActiveItemId == 0 || !(ctx->m_ItemsOrdered.at(tuim::GetItemIndex(ctx->m_ActiveItemId))->m_Flags & ITEM_FLAGS_STAY_ACTIVE)) {
+        ctx->m_LastActiveItemId = ctx->m_ActiveItemId;
+        ctx->m_ActiveItemId = 0;
+
+        int hoveredIndex = tuim::getHoveredItemIndex();
+        bool hasHoverable = tuim::HasHoverable();
+
+        // Set the first hoverable item hovered if no item is
+        if(hoveredIndex == -1 && hasHoverable) {
+            for(size_t i = 0; i < ctx->m_ItemsOrdered.size(); i++) {
+                if(!(ctx->m_ItemsOrdered.at(i)->m_Flags & ITEM_FLAGS_DISABLED)) {
+                    ctx->m_HoveredItemId = ctx->m_ItemsOrdered.at(i)->m_Id;
+                    hoveredIndex = i;
+                    break;
+                }
+            }
+        }
+
+        // Move cursor to previous hoverable item
+        if(keyCode == Key::UP) {
+            if(hasHoverable) {
+                ItemId id = 0;
+                if(hoveredIndex != -1) {
+                    size_t index = std::max(0, hoveredIndex - 1);
+                    while(index > 0 && (ctx->m_ItemsOrdered.at(index)->m_Flags & ITEM_FLAGS_DISABLED)) index--;
+                    if((ctx->m_ItemsOrdered.at(index)->m_Flags & ITEM_FLAGS_DISABLED)) index = hoveredIndex;
+                    id = ctx->m_ItemsOrdered.at(index)->m_Id;
+                }
+                ctx->m_HoveredItemId = id;
+            }
+        }
+
+        // Move cursor to next hoverable item
+        if(keyCode == Key::DOWN) {
+            if(hasHoverable) {
+                ItemId id = 0;
+                if(hoveredIndex != -1) {
+                    size_t index = std::min(hoveredIndex + 1, (int) ctx->m_ItemsOrdered.size() - 1);
+                    while(index < (ctx->m_ItemsOrdered.size() - 1) && (ctx->m_ItemsOrdered.at(index)->m_Flags) & ITEM_FLAGS_DISABLED) index++;
+                    if((ctx->m_ItemsOrdered.at(index)->m_Flags & ITEM_FLAGS_DISABLED)) index = hoveredIndex;
+                    id = ctx->m_ItemsOrdered.at(index)->m_Id;
+                }
+                ctx->m_HoveredItemId = id;
+            }
+        }
+    }
+
+    // ctx->m_ItemsOrdered.clear();
 }
 
 void tuim::Clear() {
@@ -932,6 +1003,64 @@ void tuim::Frame::Clear() {
     for (auto& line : m_Cells)
         std::fill(line.begin(), line.end(), nullptr);
     // TODO: maybe it would be better to reset the size instead?
+}
+
+/***********************************************************
+*                    COMPONENTS/ITEMS                      *
+***********************************************************/
+
+tuim::ItemId tuim::GetCurrentItemId() {
+    Context* ctx = tuim::GetCtx();
+    return ctx->m_ItemsOrdered.back()->m_Id;
+}
+
+uint32_t tuim::GetItemIndex(tuim::ItemId id) {
+    Context* ctx = tuim::GetCtx();
+    for(size_t i = 0; i < ctx->m_ItemsOrdered.size(); i++) {
+        if(ctx->m_ItemsOrdered.at(i)->m_Id == id) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+uint32_t tuim::getHoveredItemIndex() {
+    Context* ctx = tuim::GetCtx();
+    return tuim::GetItemIndex(ctx->m_HoveredItemId);
+}
+
+bool tuim::WasItemActive() {
+    Context* ctx = tuim::GetCtx();
+    return ctx->m_LastActiveItemId == (ctx->m_ItemsOrdered.back()->m_Id);
+}
+
+bool tuim::IsItemActive() {
+    Context* ctx = tuim::GetCtx();
+    return ctx->m_ActiveItemId == (ctx->m_ItemsOrdered.back()->m_Id);
+}
+
+bool tuim::IsItemHovered() {
+    Context* ctx = tuim::GetCtx();
+    return ctx->m_HoveredItemId == (ctx->m_ItemsOrdered.back()->m_Id);
+}
+
+void tuim::SetActiveItemId(ItemId id) {
+    Context* ctx = tuim::GetCtx();
+    ctx->m_ActiveItemId = id;
+}
+
+void tuim::SetHoveredItemId(ItemId id) {
+    Context* ctx = tuim::GetCtx();
+    ctx->m_HoveredItemId = id;
+}
+
+bool tuim::HasHoverable() {
+    Context* ctx = tuim::GetCtx();
+    for(size_t i = 0; i < ctx->m_ItemsOrdered.size(); i++) {
+        if(!(ctx->m_ItemsOrdered.at(i)->m_Flags & ITEM_FLAGS_DISABLED))
+            return true;
+    }
+    return false;
 }
 
 /***********************************************************
