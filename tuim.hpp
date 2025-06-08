@@ -992,76 +992,81 @@ void tuim::MergeContainer(std::shared_ptr<tuim::Container> container) {
     size_t dstHeight = dst->m_Cells.size() - origin.y;
 
     // Size of the source container, including the borders.
-    size_t containerWidth = container->m_Size.x + 2*hasBorder;
-    size_t containerHeight = container->m_Size.y + 2*hasBorder;
+    size_t containerWidth = container->m_Size.x;
+    size_t containerHeight = container->m_Size.y;
 
     auto GetRowSize = [&](int y) { return dst->m_Cells[y].size(); };
     auto SetCell = [&](int x, int y, char32_t ch) { dst->m_Cells[y][x] = std::make_shared<Cell>(ch); };
 
-    // Surround the container frame with a border if it does not have the borderless flags.
-    if (hasBorder) {
-        // TODO: check for pre-existing borders.
+    // Don't display no-width or no-height containers but move the cursors regardless.
+    if (container->m_Size.x > 0 && container->m_Size.y > 0) {
+        // Surround the container frame with a border if it does not have the borderless flags.
+        if (hasBorder) {
+            // TODO: check for pre-existing borders.
 
-        // Coordinates of the end of the src container (origin + size).
-        size_t maxX = origin.x + containerWidth - 1;
-        size_t maxY = origin.y + containerHeight - 1;
+            // Coordinates of the end of the src container (origin + size).
+            size_t maxX = origin.x + containerWidth - 1;
+            size_t maxY = origin.y + containerHeight - 1;
 
-        bool canWriteFirstRow = dstHeight >= 1;
-        bool canWriteLastRow = dstHeight >= containerHeight;
+            bool canWriteFirstRow = dstHeight >= 1;
+            bool canWriteLastRow = dstHeight >= containerHeight;
 
-        // Draw top-left corner.
-        if (canWriteFirstRow && GetRowSize(origin.y) > origin.x)
-            SetCell(origin.x, origin.y, U'+');
+            // Draw top-left corner.
+            if (canWriteFirstRow && GetRowSize(origin.y) > origin.x)
+                SetCell(origin.x, origin.y, U'+');
 
-        // Draw top-right corner.
-        if (canWriteFirstRow && GetRowSize(origin.y) > maxX)
-            SetCell(maxX, origin.y, U'+');
+            // Draw top-right corner.
+            if (canWriteFirstRow && GetRowSize(origin.y) > maxX)
+                SetCell(maxX, origin.y, U'+');
 
-        // Draw bottom-left corner.
-        if (canWriteLastRow && GetRowSize(maxY) > origin.x)
-            SetCell(origin.x, maxY, U'+');
+            // Draw bottom-left corner.
+            if (canWriteLastRow && GetRowSize(maxY) > origin.x)
+                SetCell(origin.x, maxY, U'+');
 
-        // Draw bottom-right corner.
-        if (canWriteLastRow && GetRowSize(maxY) > maxX)
-            SetCell(maxX, maxY, U'+');
+            // Draw bottom-right corner.
+            if (canWriteLastRow && GetRowSize(maxY) > maxX)
+                SetCell(maxX, maxY, U'+');
 
-        // Draw top and bottom borders.
-        for (size_t x = 1; x < containerWidth-1; x++) {
-            if (canWriteFirstRow && GetRowSize(origin.y) > origin.x + x)
-                SetCell(origin.x + x, origin.y, U'-');
-            if (canWriteLastRow && GetRowSize(maxY) > origin.x + x)
-                SetCell(origin.x + x, maxY, U'-');
+            // Draw top and bottom borders.
+            for (size_t x = 1; x < containerWidth-1; x++) {
+                if (canWriteFirstRow && GetRowSize(origin.y) > origin.x + x)
+                    SetCell(origin.x + x, origin.y, U'-');
+                if (canWriteLastRow && GetRowSize(maxY) > origin.x + x)
+                    SetCell(origin.x + x, maxY, U'-');
+            }
+            
+            // Draw left and right borders.
+            for (size_t y = 1; y < containerHeight-1; y++) {
+                if (dstHeight > y && GetRowSize(origin.y + y) > origin.x)
+                    SetCell(origin.x, origin.y + y, U'|');
+                if (dstHeight > y && GetRowSize(origin.y + y) > maxX)
+                    SetCell(maxX, origin.y + y, U'|');
+            }
         }
-        
-        // Draw left and right borders.
-        for (size_t y = 1; y < containerHeight-1; y++) {
-            if (dstHeight > y && GetRowSize(origin.y + y) > origin.x)
-                SetCell(origin.x, origin.y + y, U'|');
-            if (dstHeight > y && GetRowSize(origin.y + y) > maxX)
-                SetCell(maxX, origin.y + y, U'|');
-        }
-    }
 
-    // Move the origin to not overwrite the border.
-    vec2 contentOrigin = vec2(origin.x + hasBorder, origin.y + hasBorder);
+        // Move the origin to not overwrite the border.
+        vec2 contentOrigin = vec2(origin.x + hasBorder, origin.y + hasBorder);
 
-    size_t minY = std::min({
-        containerHeight - 2*hasBorder, // Height of the container (without borders).
-        src->m_Cells.size(), // Height of source frame.
-        (size_t) std::max(0, (int) dst->m_Cells.size() - contentOrigin.y) // Relative height of dest frame.
-    });
-
-    // Merge source frame characters into the dest frame.
-    for (size_t y = 0; y < minY; y++) {
-        
-        size_t minX = std::min({
-            containerWidth - 2*hasBorder, // Width of the container (without borders).
-            src->m_Cells[y].size(), // Width of source frame.
-            (size_t) std::max(0, (int) dst->m_Cells[contentOrigin.y + y].size() - contentOrigin.x) // Relative width of dest frame.
+        // Parse to int and size_t in order to have negatives and return 0.
+        size_t minY = std::min({
+            (size_t) std::max(0, (int) containerHeight - 2*hasBorder), // Height of the container (without borders).
+            src->m_Cells.size(), // Height of source frame.
+            (size_t) std::max(0, (int) dst->m_Cells.size() - contentOrigin.y) // Relative height of dest frame.
         });
 
-        for (size_t x = 0; x < minX; x++) {
-            dst->m_Cells[contentOrigin.y + y][contentOrigin.x + x] = src->m_Cells[y][x];
+        // Merge source frame characters into the dest frame.
+        for (size_t y = 0; y < minY; y++) {
+            
+            // Parse to int and size_t in order to have negatives and return 0.
+            size_t minX = std::min({
+                (size_t) std::max(0, (int) containerWidth - 2*hasBorder), // Width of the container (without borders).
+                src->m_Cells[y].size(), // Width of source frame.
+                (size_t) std::max(0, (int) dst->m_Cells[contentOrigin.y + y].size() - contentOrigin.x) // Relative width of dest frame.
+            });
+
+            for (size_t x = 0; x < minX; x++) {
+                dst->m_Cells[contentOrigin.y + y][contentOrigin.x + x] = src->m_Cells[y][x];
+            }
         }
     }
 

@@ -42,6 +42,10 @@ int main(int argc, char* argv[]) {
 
         tuim::vec2 size = tuim::Terminal::GetTerminalSize();
 
+        tuim::Print("terminal size: {} {}\n", size.x, size.y);
+        tuim::Print("container width: {}\n", containerWidth);
+        tuim::Print("container height: {}\n", containerHeight);
+
         tuim::BeginContainer("#container1", "", tuim::vec2(containerWidth, containerHeight));
 
         // tuim::Print("{}\n", (uint32_t) keyCode);
@@ -68,9 +72,6 @@ int main(int argc, char* argv[]) {
         tuim::Print("line 1\t\tline1\tline1\nline 2\nline 3\n");
         tuim::Print("你\t好\n");
         tuim::Print("😃\t😃\n");
-        tuim::Print("terminal size: {} {}\n", size.x, size.y);
-        tuim::Print("container width: {}\n", containerWidth);
-        tuim::Print("container height: {}\n", containerHeight);
 
         std::string_view colorSv = "#_ff0000";
         tuim::Color color = tuim::StringToColor(colorSv);
