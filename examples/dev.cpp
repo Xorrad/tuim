@@ -46,6 +46,8 @@ int main(int argc, char* argv[]) {
         tuim::Print("container width: {}\n", containerWidth);
         tuim::Print("container height: {}\n", containerHeight);
 
+        tuim::Button("#b1", "Click Here!");
+
         tuim::BeginContainer("#container1", "", tuim::vec2(containerWidth, containerHeight));
 
         // tuim::Print("{}\n", (uint32_t) keyCode);

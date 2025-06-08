@@ -410,7 +410,8 @@ namespace tuim {
     *                         ITEMS                            *
     ***********************************************************/
 
-    template <typename... Args> void Print(std::format_string<Args...> fmt, Args&&... args); // Print a formatted string to the current frame.
+    template <typename... Args> void Print(const std::string& fmt, Args&&... args); // Print a formatted string to the current frame.
+    bool Button(const std::string& id, const std::string& text, ItemFlags flags = ITEM_FLAGS_NONE);
 
     /***********************************************************
     *                    STRING FUNCTIONS                      *
@@ -1079,6 +1080,7 @@ void tuim::BeginContainer(std::string_view id, std::string_view label, tuim::vec
     ItemId itemId = tuim::StringToId(id);
     std::shared_ptr<Container> container = std::make_shared<Container>();
     container->m_Id = itemId;
+    container->m_Flags = ITEM_FLAGS_DISABLED;
     container->m_ContainerFlags = flags;
     container->m_Size = size;
     container->m_Pos = frame->m_Cursor;
@@ -1206,9 +1208,9 @@ void tuim::MergeContainer(std::shared_ptr<tuim::Container> container) {
 /***********************************************************
 *                         ITEMS                            *
 ***********************************************************/
-
-template <typename... Args> void tuim::Print(std::format_string<Args...> fmt, Args&&... args) {
-    std::string str = std::format(fmt, std::forward<Args>(args)...);
+    
+template <typename... Args> void tuim::Print(const std::string& fmt, Args&&... args) {
+    std::string str = std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...));
 
     Context* ctx = tuim::GetCtx();
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
@@ -1340,6 +1342,31 @@ template <typename... Args> void tuim::Print(std::format_string<Args...> fmt, Ar
     ctx->m_CurrentForeground = currentForeground;
     ctx->m_CurrentBackground = currentBackground;
     ctx->m_CurrentStyle = currentStyle;
+}
+
+bool tuim::Button(const std::string& id, const std::string& text, tuim::ItemFlags flags) {
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Create a new item and push it to the stack.
+    ItemId itemId = tuim::StringToId(id);
+    std::shared_ptr<Item> item = std::make_shared<Item>();
+    item->m_Id = itemId;
+    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    item->m_Pos = frame->m_Cursor;
+    item->m_Flags = flags;
+    tuim::AddItem(item);
+
+    if(tuim::IsItemHovered()) {
+        if(tuim::IsKeyPressed(Key::ENTER)) {
+            tuim::SetActiveItemId(item->m_Id);
+        }
+        tuim::Print("[x] ");
+    }
+    else tuim::Print("[ ] ");
+
+    tuim::Print(text);
+
+    return tuim::IsItemActive();
 }
 
 /***********************************************************
