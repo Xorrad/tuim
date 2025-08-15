@@ -1266,75 +1266,96 @@ template <typename... Args> void tuim::Print(const std::string& fmt, Args&&... a
         cell->m_Style = currentStyle;
     };
 
+    bool escaped = false;
+
     size_t i = 0;
     while (i < str.length()) {
         char c = str[i];
-        if (c == '#') {
-            // Possible hex color: #rrggbb or #_rrggbb.
-            bool isBackground = (i + 1 < str.length() && str[i+1] == '_');
-            size_t codeSize = 1 + isBackground + 6;
+        char cc = (i+1 < str.length()) ? str[i+1] : '\0';
 
-            // Check if there are enough characters for a hex code (6 characters).
-            if (i + codeSize <= str.length()) {
-                std::string_view code(str.data() + i, codeSize);
-                Color newColor = tuim::StringToColor(code);
-                if (isBackground) currentBackground = newColor;
-                else currentForeground = newColor;
-
-                // Move past the style code.
-                i += codeSize;
-                continue;
-            }
-        }
-        else if (c == '&') {
-            if (i + 1 < str.length()) {
-                char tag = str[i+1];
-
-                // Check for '&r' first, as it's a special reset tag.
-                if (tag == 'r') {
-                    currentForeground = std::nullopt;
-                    currentBackground = std::nullopt;
-                    currentStyle = Style::NONE;
-                    
-                    // Consume '&r'.
-                    i += 2;
+        if (!escaped) {
+            if (c == '#') {
+                // Escape the color code by repeating the same character.
+                if (cc == '#') {
+                    escaped = true;
+                    i++;
                     continue;
                 }
 
-                // Check user-defined styles
-                auto styleIt = ctx->m_UserStyles.find(tag);
-                if (styleIt != ctx->m_UserStyles.end()) {
-                    currentStyle |= styleIt->second;
+                // Possible hex color: #rrggbb or #_rrggbb.
+                bool isBackground = (i + 1 < str.length() && str[i+1] == '_');
+                size_t codeSize = 1 + isBackground + 6;
 
-                    // Consume '&' + tag character.
-                    // Continue to the next part of the string after a successful tag match.
-                    i += 2;
-                    continue;
-                }
-                
-                // Check user-defined foreground colors
-                auto fgIt = ctx->m_UserForegrounds.find(tag);
-                if (fgIt != ctx->m_UserForegrounds.end()) {
-                    currentForeground = fgIt->second;
-                    
-                    // Consume '&' + tag character.
-                    // Continue to the next part of the string after a successful tag match.
-                    i += 2;
-                    continue;
-                }
+                // Check if there are enough characters for a hex code (6 characters).
+                if (i + codeSize <= str.length()) {
+                    std::string_view code(str.data() + i, codeSize);
+                    Color newColor = tuim::StringToColor(code);
+                    if (isBackground) currentBackground = newColor;
+                    else currentForeground = newColor;
 
-                // Check user-defined background colors
-                auto bgIt = ctx->m_UserBackgrounds.find(tag);
-                if (bgIt != ctx->m_UserBackgrounds.end()) {
-                    currentBackground = bgIt->second;
-                    
-                    // Consume '&' + tag character.
-                    // Continue to the next part of the string after a successful tag match.
-                    i += 2;
+                    // Move past the style code.
+                    i += codeSize;
                     continue;
                 }
             }
+            else if (c == '&') {
+                // Escape the color code by repeating the same character.
+                if (cc == '&') {
+                    escaped = true;
+                    i++;
+                    continue;
+                }
+                if (i + 1 < str.length()) {
+                    char tag = str[i+1];
+
+                    // Check for '&r' first, as it's a special reset tag.
+                    if (tag == 'r') {
+                        currentForeground = std::nullopt;
+                        currentBackground = std::nullopt;
+                        currentStyle = Style::NONE;
+                        
+                        // Consume '&r'.
+                        i += 2;
+                        continue;
+                    }
+
+                    // Check user-defined styles
+                    auto styleIt = ctx->m_UserStyles.find(tag);
+                    if (styleIt != ctx->m_UserStyles.end()) {
+                        currentStyle |= styleIt->second;
+
+                        // Consume '&' + tag character.
+                        // Continue to the next part of the string after a successful tag match.
+                        i += 2;
+                        continue;
+                    }
+                    
+                    // Check user-defined foreground colors
+                    auto fgIt = ctx->m_UserForegrounds.find(tag);
+                    if (fgIt != ctx->m_UserForegrounds.end()) {
+                        currentForeground = fgIt->second;
+                        
+                        // Consume '&' + tag character.
+                        // Continue to the next part of the string after a successful tag match.
+                        i += 2;
+                        continue;
+                    }
+
+                    // Check user-defined background colors
+                    auto bgIt = ctx->m_UserBackgrounds.find(tag);
+                    if (bgIt != ctx->m_UserBackgrounds.end()) {
+                        currentBackground = bgIt->second;
+                        
+                        // Consume '&' + tag character.
+                        // Continue to the next part of the string after a successful tag match.
+                        i += 2;
+                        continue;
+                    }
+                }
+            }
         }
+
+        escaped = false;
 
         // Handle regular characters (not style tags)
         uint8_t charLength = tuim::Utf8CharLength(c);
