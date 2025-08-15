@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
         tuim::Print("\n");
         
         // Display a decimal slider with min, max, step and width (of the progress bar) parameters.
-        if (tuim::FloatSlider("#input3", "Float: {} {:.2f}", &number2, 0.f, 5.f, 0.01f, 50)) {
+        if (tuim::FloatSlider("#input5", "Float: {} {:.2f}", &number2, 0.f, 5.f, 0.01f, 50)) {
             tuim::Print(" Changed");
         }
         tuim::Print("\n");
