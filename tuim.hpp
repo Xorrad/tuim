@@ -554,8 +554,25 @@ char32_t tuim::PollKeyCode() {
     // to 5 in order to avoid the next step of calculating expected bytes
     // for UTF8 characters.
     // TODO: handle special keys better, including F6, F7... which are 5 bytes escape sequences.
-    if (static_cast<unsigned char>(buffer[0]) == 0x1B) {
+    if (static_cast<unsigned char>(buffer[0]) == Key::ESCAPE) {
         expectedBytes = 5;
+
+        fd_set seqSet;
+        FD_ZERO(&seqSet);
+        FD_SET(STDIN_FILENO, &seqSet);
+
+        timeval seqTimeout;
+        seqTimeout.tv_sec = 0;
+        seqTimeout.tv_usec = 1000 * 5;
+
+        // if there are no more bytes to come, then it is a single Escape key.
+        if (select(STDIN_FILENO + 1, &seqSet, NULL, NULL, &seqTimeout) != 1) {
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldState);
+            return Key::ESCAPE;
+        }
+
+        // Reset the timeout.
+        select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout);
     }
 
     // Determine the expected number of bytes left to read (if it isn't an escape sequence).
