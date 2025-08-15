@@ -31,6 +31,7 @@ namespace tuim {
 #include <locale> // setlocale
 #include <unordered_map> // std::unordered_map
 #include <optional> // std::optional
+#include <charconv> // std::from_chars
 
 #ifdef __linux__
 #include <unistd.h> // STDOUT_FILENO
@@ -411,11 +412,15 @@ namespace tuim {
     ***********************************************************/
 
     template <typename... Args> void Print(const std::string& fmt, Args&&... args); // Print a formatted string to the current frame.
-    bool Button(const std::string& id, const std::string& text, ItemFlags flags = ITEM_FLAGS_NONE);
+    bool Button(const std::string& id, const std::string& text, ItemFlags flags = ITEM_FLAGS_NONE); // Print a button that can be pressed.
+    bool InputText(const std::string& id, std::string_view fmt, std::string* value, ItemFlags flags = ITEM_FLAGS_STAY_ACTIVE); // Print an string input.
 
     /***********************************************************
     *                    STRING FUNCTIONS                      *
     ***********************************************************/
+    
+    constexpr unsigned char UTF8_CONT_MASK = 0xC0;  // 11000000
+    constexpr unsigned char UTF8_CONT_TAG  = 0x80;  // 10000000
 
     int Utf8CharWidth(char32_t ch); // Returns the width (in columns) of a character.
     uint8_t Utf8CharLength(char c); // Returns the expected UTF-8 length of a specific character
@@ -423,6 +428,10 @@ namespace tuim {
     char32_t Utf8Decode(const char* bytes, size_t length); // Returns a 32 bytes UTF-8 character from an array of bytes
     void Utf8IterateString(std::string_view sv, std::function<void(char32_t, size_t)> func); // Iterate over UTF-8 characters in a regular string
     ItemId StringToId(std::string_view sv); // Hash a string to get an integer.
+    bool IsPrintable(char32_t ch); // Determines if a character is "printable".
+
+    size_t Utf8CharLastIndex(std::string_view sv, size_t index); // Returns the index of the last UTF8 character.
+    size_t Utf8CharNextIndex(std::string_view sv, size_t index); // Returns the index of the next UTF8 character.
 
     /**********************************************************
     *                        CONTEXT                          *
@@ -604,14 +613,14 @@ tuim::Color tuim::StringToColor(std::string_view sv) {
         return color;
     }
 
-    // Otherwise, parse the color as an hex.
-    try {
-        unsigned long hex = std::stoul(sv.data(), nullptr, 16);
-        color.r = static_cast<uint8_t>((hex >> 16) & 0xFF);
-        color.g = static_cast<uint8_t>((hex >> 8) & 0xFF);
-        color.b = static_cast<uint8_t>(hex & 0xFF);
-    }
-    catch (std::exception& e) {}
+    unsigned long hex;
+    auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), hex, 16);
+    if (ec != std::errc())
+        return color;
+
+    color.r = static_cast<uint8_t>((hex >> 16) & 0xFF);
+    color.g = static_cast<uint8_t>((hex >> 8) & 0xFF);
+    color.b = static_cast<uint8_t>(hex & 0xFF);
 
     return color;
 }
@@ -1369,6 +1378,116 @@ bool tuim::Button(const std::string& id, const std::string& text, tuim::ItemFlag
     return tuim::IsItemActive();
 }
 
+bool tuim::InputText(const std::string& id, std::string_view fmt, std::string* value, ItemFlags flags) {
+    static size_t s_Cursor = value->length();
+    
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Create a new item and push it to the stack.
+    ItemId itemId = tuim::StringToId(id);
+    std::shared_ptr<Item> item = std::make_shared<Item>();
+    item->m_Id = itemId;
+    // item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    item->m_Pos = frame->m_Cursor;
+    item->m_Flags = flags;
+    tuim::AddItem(item);
+
+    bool hasChanged = false;
+
+    // Handle keyboard inputs to change text, move cursor...
+    if(tuim::IsItemActive()) {
+        if(tuim::IsKeyPressed(Key::ESCAPE)) {
+            tuim::SetActiveItemId(0);
+        }
+        else if(tuim::IsKeyPressed(Key::LEFT)) {
+            s_Cursor = tuim::Utf8CharLastIndex(*value, s_Cursor);
+        }
+        else if(tuim::IsKeyPressed(Key::RIGHT)) {
+            s_Cursor = tuim::Utf8CharNextIndex(*value, s_Cursor);
+        }
+        else if(tuim::IsKeyPressed(Key::DELETE)) {
+            if(s_Cursor < value->length()) {
+                size_t nextIndex = tuim::Utf8CharNextIndex(*value, s_Cursor);
+                *value = value->erase(s_Cursor, nextIndex - s_Cursor);
+                hasChanged = true;
+            }
+        }
+        else if(tuim::IsKeyPressed(Key::BACKSPACE)) {
+            if(s_Cursor > 0) {
+                size_t lastIndex = tuim::Utf8CharLastIndex(*value, s_Cursor);
+                *value = value->erase(lastIndex, s_Cursor - lastIndex);
+                s_Cursor = lastIndex;
+                hasChanged = true;
+            }
+        }
+        else {
+            char32_t keyCode = ctx->m_PressedKeyCode;
+            if(tuim::IsPrintable(keyCode)) {
+                std::string ch = tuim::Utf8Char32ToString(keyCode);
+                value->insert(s_Cursor, ch);
+                s_Cursor += ch.length();
+                hasChanged = true;
+            }
+        }
+    }
+        
+    if(tuim::IsItemHovered()) {
+        if(tuim::IsKeyPressed(Key::ENTER)) {
+            if (tuim::IsItemActive()) {
+                tuim::SetActiveItemId(0);
+                hasChanged = true;
+            }
+            else {
+                tuim::SetActiveItemId(item->m_Id);
+            }
+        }
+        if (tuim::IsItemActive()) tuim::Print("[*] ");
+        else tuim::Print("[x] ");
+    }
+    else tuim::Print("[ ] ");
+
+    
+    // Calculate how the text should be displayed with highlighting and escaped formatting.
+    std::string displayedValue = "#_555555";
+    for (size_t i = 0; i < value->length();) {
+        size_t charLength = tuim::Utf8CharLength((*value)[i]);
+        std::string_view sv = std::string_view(value->data()+i, charLength);
+
+        // Escape tuim formatting.
+        if(tuim::IsItemActive() && sv == "#")
+            displayedValue += '#';
+        if(tuim::IsItemActive() && sv == "&")
+            displayedValue += '&';
+
+        // Add cursor to be displayed.
+        if(tuim::IsItemActive() && !tuim::IsKeyPressed() && s_Cursor == i) {
+            displayedValue += "#_ffffff#555555";
+            displayedValue += sv;
+            displayedValue += "&r#_555555";
+        }
+        else {
+            displayedValue += sv;
+        }
+
+        i += charLength;
+    }
+
+    // Add cursor if it is at the end the text.
+    if(tuim::IsItemActive() && !tuim::IsKeyPressed() && s_Cursor >= value->length())
+        displayedValue += "#_ffffff ";
+
+    // Reset any styles after the input text.
+    displayedValue += "&r";
+
+    std::string text = std::vformat(fmt, std::make_format_args(displayedValue));
+    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+
+    // Display the actual input text.
+    tuim::Print(text);
+
+    return hasChanged;
+}
+
 /***********************************************************
 *                    STRING FUNCTIONS                      *
 ***********************************************************/
@@ -1446,7 +1565,7 @@ void tuim::Utf8IterateString(std::string_view sv, std::function<void(char32_t, s
             ch = lead & ((1 << (7 - length)) - 1); // Mask initial bits.
             for (size_t i = 1; i < length; ++i) {
                 char8_t cont = static_cast<char8_t>(sv[index + i]);
-                if ((cont & 0b11000000) != 0b10000000) {
+                if ((cont & UTF8_CONT_MASK) != UTF8_CONT_TAG) {
                     // throw std::runtime_error("error: invalid UTF-8 continuation byte.");
                     return;
                 }
@@ -1466,6 +1585,34 @@ tuim::ItemId tuim::StringToId(std::string_view sv) {
     for (size_t i = 0; i < sv.size(); i++)
         hash = 33 * hash + (unsigned char) sv[i];
     return hash;
+}
+
+bool tuim::IsPrintable(char32_t ch) {
+    if (std::iswcntrl(ch))
+        return false;
+    // Check if high-order byte is ESC (0x1B)
+    if (((ch >> 16) & 0xFF) == 0x1B)
+        return false;
+    return true;
+}
+
+size_t tuim::Utf8CharLastIndex(std::string_view sv, size_t index) {
+    if (sv.empty() || index == 0)
+        return 0;
+    do {
+        index--;
+    } while (index > 0 && (static_cast<unsigned char>(sv[index]) & UTF8_CONT_MASK) == UTF8_CONT_TAG);
+    return index;
+}
+
+size_t tuim::Utf8CharNextIndex(std::string_view sv, size_t index) {
+    const size_t n = sv.size();
+    if (n == 0 || index >= n)
+        return n;
+    do {
+        index++;
+    } while (index < n && (static_cast<unsigned char>(sv[index]) & UTF8_CONT_MASK) == UTF8_CONT_TAG);
+    return index;
 }
 
 /**********************************************************
