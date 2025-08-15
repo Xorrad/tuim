@@ -1504,6 +1504,7 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
                 hasChanged = true;
             }
             else {
+                s_Cursor = value->length();
                 tuim::SetActiveItemId(item->m_Id);
             }
         }
