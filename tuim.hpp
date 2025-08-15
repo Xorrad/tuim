@@ -423,7 +423,9 @@ namespace tuim {
 
     template <typename... Args> void Print(const std::string& fmt, Args&&... args); // Print a formatted string to the current frame.
     bool Button(const std::string& id, const std::string& text, ItemFlags flags = ITEM_FLAGS_NONE); // Print a button that can be pressed.
-    bool InputText(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags = INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER); // Print an string input.
+    bool TextInput(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags = INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER); // Print an string input.
+    bool IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step = 1, int width = 100); // Print an integer slider.
+    bool FloatSlider(const std::string& id, std::string_view fmt, float* value, float min, float max, float step = 0.01, int width = 100); // Print a float number slider.
 
     /***********************************************************
     *                    STRING FUNCTIONS                      *
@@ -1429,7 +1431,7 @@ bool tuim::Button(const std::string& id, const std::string& text, tuim::ItemFlag
     return tuim::IsItemActive();
 }
 
-bool tuim::InputText(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags) {
+bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags) {
     static size_t s_Cursor = value->length();
     
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
@@ -1542,6 +1544,118 @@ bool tuim::InputText(const std::string& id, std::string_view fmt, std::string* v
     item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
 
     // Display the actual input text.
+    tuim::Print(text);
+
+    return hasChanged;
+}
+
+bool tuim::IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step, int width) {
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Create a new item and push it to the stack.
+    ItemId itemId = tuim::StringToId(id);
+    std::shared_ptr<Item> item = std::make_shared<Item>();
+    item->m_Id = itemId;
+    item->m_Pos = frame->m_Cursor;
+    item->m_Flags = ITEM_FLAGS_NONE;
+    tuim::AddItem(item);
+
+    bool hasChanged = false;
+        
+    if(tuim::IsItemHovered()) {
+        if(tuim::IsKeyPressed(Key::LEFT)) {
+            *value = std::max(min, *value - step);
+            hasChanged = true;
+        }
+        else if(tuim::IsKeyPressed(Key::RIGHT)) {
+            *value = std::min(max, *value + step);
+            hasChanged = true;
+        }
+        else if(tuim::IsKeyPressed(Key::ENTER)) {
+            if (tuim::IsItemActive()) {
+                tuim::SetActiveItemId(0);
+                hasChanged = true;
+            }
+            else {
+                tuim::SetActiveItemId(item->m_Id);
+            }
+        }
+        if (tuim::IsItemActive()) tuim::Print("[*] ");
+        else tuim::Print("[x] ");
+    }
+    else tuim::Print("[ ] ");
+
+    std::string text = "";
+    text += "#555555";
+    float prct = ((float) (*value - min) / (float) (max-min))*width;
+    for(int t = 0; t < width; t++) {
+        if(t >= prct) text += "&r";
+        text += "█";
+    }
+    text += "&r";
+
+    // TODO: use a static variable to change the value manually.
+    // if(tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {}
+
+    text = std::vformat(fmt, std::make_format_args(text, *value));
+    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    
+    tuim::Print(text);
+
+    return hasChanged;
+}
+
+bool tuim::FloatSlider(const std::string& id, std::string_view fmt, float* value, float min, float max, float step, int width) {
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Create a new item and push it to the stack.
+    ItemId itemId = tuim::StringToId(id);
+    std::shared_ptr<Item> item = std::make_shared<Item>();
+    item->m_Id = itemId;
+    item->m_Pos = frame->m_Cursor;
+    item->m_Flags = ITEM_FLAGS_NONE;
+    tuim::AddItem(item);
+
+    bool hasChanged = false;
+        
+    if(tuim::IsItemHovered()) {
+        if(tuim::IsKeyPressed(Key::LEFT)) {
+            *value = std::max(min, *value - step);
+            hasChanged = true;
+        }
+        else if(tuim::IsKeyPressed(Key::RIGHT)) {
+            *value = std::min(max, *value + step);
+            hasChanged = true;
+        }
+        else if(tuim::IsKeyPressed(Key::ENTER)) {
+            if (tuim::IsItemActive()) {
+                tuim::SetActiveItemId(0);
+                hasChanged = true;
+            }
+            else {
+                tuim::SetActiveItemId(item->m_Id);
+            }
+        }
+        if (tuim::IsItemActive()) tuim::Print("[*] ");
+        else tuim::Print("[x] ");
+    }
+    else tuim::Print("[ ] ");
+
+    std::string text = "";
+    text += "#555555";
+    float prct = ((float) (*value - min) / (float) (max-min))*width;
+    for(int t = 0; t < width; t++) {
+        if(t >= prct) text += "&r";
+        text += "█";
+    }
+    text += "&r";
+
+    // TODO: use a static variable to change the value manually.
+    // if(tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {}
+
+    text = std::vformat(fmt, std::make_format_args(text, *value));
+    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    
     tuim::Print(text);
 
     return hasChanged;

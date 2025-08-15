@@ -15,6 +15,8 @@ int main(int argc, char* argv[]) {
 
     std::string str = "";
     std::string input1 = "xorrade";
+    int i = 10;
+    float f = 5.f;
 
     char32_t keyCode = 0;
     while (keyCode != tuim::Key::F1) {
@@ -22,7 +24,7 @@ int main(int argc, char* argv[]) {
         tuim::Update(keyCode);
         tuim::Clear();
         
-        tuim::BeginContainer("#container1", "", tuim::vec2(50, 50));
+        tuim::BeginContainer("#container1", "", tuim::vec2(100, 100));
 
         if (keyCode != 0 && !tuim::IsKeyPressed(tuim::Key::LEFT) && !tuim::IsKeyPressed(tuim::Key::RIGHT) && !tuim::IsKeyPressed(tuim::Key::UP) && !tuim::IsKeyPressed(tuim::Key::DOWN) && !tuim::IsKeyPressed(tuim::Key::ENTER) && !tuim::IsKeyPressed(tuim::Key::ESCAPE) && !tuim::IsKeyPressed(tuim::Key::BACKSPACE))
             str += tuim::Utf8Char32ToString(keyCode);
@@ -33,13 +35,23 @@ int main(int argc, char* argv[]) {
         tuim::Print("#_0000ffThis has a blue background.&r\n");
         tuim::Print("##This has a blue background.&r\n");
 
-        if (tuim::InputText("#input1", "Username: {}", &input1, tuim::INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER | tuim::INPUT_TEXT_FLAGS_NUMERIC_ONLY)) {
+        if (tuim::TextInput("#input1", "Username: {}", &input1, tuim::INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER | tuim::INPUT_TEXT_FLAGS_NUMERIC_ONLY)) {
             tuim::Print(" Changed");
         }
         tuim::Print("\n");
         for (int i = 0; i < input1.size(); i++)
             tuim::Print("{:#04x}\t{:#04x}\n", input1[i], str[i]);
         
+        if (tuim::IntSlider("#input2", "Int: {} {}", &i, 0, 50, 1, 50)) {
+            tuim::Print(" Changed");
+        }
+        tuim::Print("\n");
+        
+        if (tuim::FloatSlider("#input3", "Float: {} {:.2f}", &f, 0.f, 5.f, 0.01f, 50)) {
+            tuim::Print(" Changed");
+        }
+        tuim::Print("\n");
+
         tuim::EndContainer();
 
         tuim::Display();
