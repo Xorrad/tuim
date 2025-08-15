@@ -302,8 +302,7 @@ namespace tuim {
     void SetFramerate(float framerate); // Change the delay between two frame are calculated and drawn
 
     void DefineStyle(char tag, Style style);
-    void DefineForeground(char tag, Color color);
-    void DefineBackground(char tag, Color color);
+    void DefineColor(char tag, Color color);
 
     void Update(char32_t keyCode); // Update the frame depending on the key pressed
     void Clear(); // Clear the current frame buffer
@@ -488,8 +487,7 @@ namespace tuim {
 
         // User-defined style maps.
         std::unordered_map<char, Style> m_UserStyles;
-        std::unordered_map<char, Color> m_UserForegrounds;
-        std::unordered_map<char, Color> m_UserBackgrounds;
+        std::unordered_map<char, Color> m_UserColors;
     };
 
     void AddItem(std::shared_ptr<Item> item);
@@ -737,14 +735,9 @@ void tuim::DefineStyle(char tag, Style style) {
     ctx->m_UserStyles[tag] = style;
 }
 
-void tuim::DefineForeground(char tag, Color color) {
+void tuim::DefineColor(char tag, Color color) {
     Context* ctx = tuim::GetCtx();
-    ctx->m_UserForegrounds[tag] = color;
-}
-
-void tuim::DefineBackground(char tag, Color color) {
-    Context* ctx = tuim::GetCtx();
-    ctx->m_UserBackgrounds[tag] = color;
+    ctx->m_UserColors[tag] = color;
 }
 
 void tuim::Update(char32_t keyCode) {
@@ -1285,7 +1278,7 @@ template <typename... Args> void tuim::Print(const std::string& fmt, Args&&... a
                 }
 
                 // Possible hex color: #rrggbb or #_rrggbb.
-                bool isBackground = (i + 1 < str.length() && str[i+1] == '_');
+                bool isBackground = (cc == '_');
                 size_t codeSize = 1 + isBackground + 6;
 
                 // Check if there are enough characters for a hex code (6 characters).
@@ -1307,8 +1300,14 @@ template <typename... Args> void tuim::Print(const std::string& fmt, Args&&... a
                     i++;
                     continue;
                 }
-                if (i + 1 < str.length()) {
-                    char tag = str[i+1];
+
+                // Determine if the color is used as a foreground or background.
+                // In case the tag corresponds to a style, then we just ignore it.
+                bool isBackground = (cc == '_');
+                size_t codeSize = 2 + isBackground;
+
+                if (i + isBackground + 1 < str.length()) {
+                    char tag = str[i+isBackground+1];
 
                     // Check for '&r' first, as it's a special reset tag.
                     if (tag == 'r') {
@@ -1316,8 +1315,8 @@ template <typename... Args> void tuim::Print(const std::string& fmt, Args&&... a
                         currentBackground = std::nullopt;
                         currentStyle = Style::NONE;
                         
-                        // Consume '&r'.
-                        i += 2;
+                        // Consume '&r' and possible the background character.
+                        i += codeSize;
                         continue;
                     }
 
@@ -1326,31 +1325,19 @@ template <typename... Args> void tuim::Print(const std::string& fmt, Args&&... a
                     if (styleIt != ctx->m_UserStyles.end()) {
                         currentStyle |= styleIt->second;
 
-                        // Consume '&' + tag character.
-                        // Continue to the next part of the string after a successful tag match.
-                        i += 2;
+                        // Consume the tag and possible the background character.
+                        i += codeSize;
                         continue;
                     }
                     
-                    // Check user-defined foreground colors
-                    auto fgIt = ctx->m_UserForegrounds.find(tag);
-                    if (fgIt != ctx->m_UserForegrounds.end()) {
-                        currentForeground = fgIt->second;
+                    // Check user-defined colors
+                    auto fgIt = ctx->m_UserColors.find(tag);
+                    if (fgIt != ctx->m_UserColors.end()) {
+                        if (isBackground) currentBackground = fgIt->second;
+                        else currentForeground = fgIt->second;
                         
-                        // Consume '&' + tag character.
-                        // Continue to the next part of the string after a successful tag match.
-                        i += 2;
-                        continue;
-                    }
-
-                    // Check user-defined background colors
-                    auto bgIt = ctx->m_UserBackgrounds.find(tag);
-                    if (bgIt != ctx->m_UserBackgrounds.end()) {
-                        currentBackground = bgIt->second;
-                        
-                        // Consume '&' + tag character.
-                        // Continue to the next part of the string after a successful tag match.
-                        i += 2;
+                        // Consume the tag and possible the background character.
+                        i += codeSize;
                         continue;
                     }
                 }
