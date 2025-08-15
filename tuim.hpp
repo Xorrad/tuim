@@ -1449,6 +1449,11 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
 
     // Handle keyboard inputs to change text, move cursor...
     if(tuim::IsItemActive()) {
+        // Make sure that the cursor doesn't go out of range, especially
+        // when switching between different text inputs.
+        if (s_Cursor > value->length())
+            s_Cursor = value->length();
+
         if(tuim::IsKeyPressed(Key::ESCAPE)) {
             tuim::SetActiveItemId(0);
         }
