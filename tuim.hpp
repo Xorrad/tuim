@@ -62,6 +62,9 @@ namespace tuim {
     class Context;
 
     using ItemId = unsigned long;
+    using ItemFlags = uint32_t;
+    using ContainerFlags = uint32_t;
+    using InputTextFlags = uint32_t;
 
     /***********************************************************
     *                           MATH                           *
@@ -266,15 +269,22 @@ namespace tuim {
     *                         FLAGS                            *
     ***********************************************************/
 
-    enum ItemFlags : uint32_t {
+    enum ItemFlags_ : uint32_t {
         ITEM_FLAGS_NONE        = 0,
         ITEM_FLAGS_DISABLED    = 1 << 0,
         ITEM_FLAGS_STAY_ACTIVE = 1 << 1,
     };
     
-    enum ContainerFlags : uint32_t {
+    enum ContainerFlags_ : uint32_t {
         CONTAINER_FLAGS_NONE = 0,
         CONTAINER_FLAGS_BORDERLESS = 1 << 0,
+    };
+    
+    enum InputTextFlags_ : uint32_t {
+        INPUT_TEXT_FLAGS_NONE = 0,
+        INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER = 1 << 0,
+        INPUT_TEXT_FLAGS_NUMERIC_ONLY = 1 << 1,
+        INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY = 1 << 2,
     };
 
     /***********************************************************
@@ -413,7 +423,7 @@ namespace tuim {
 
     template <typename... Args> void Print(const std::string& fmt, Args&&... args); // Print a formatted string to the current frame.
     bool Button(const std::string& id, const std::string& text, ItemFlags flags = ITEM_FLAGS_NONE); // Print a button that can be pressed.
-    bool InputText(const std::string& id, std::string_view fmt, std::string* value, ItemFlags flags = ITEM_FLAGS_STAY_ACTIVE); // Print an string input.
+    bool InputText(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags = INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER); // Print an string input.
 
     /***********************************************************
     *                    STRING FUNCTIONS                      *
@@ -432,6 +442,9 @@ namespace tuim {
 
     size_t Utf8CharLastIndex(std::string_view sv, size_t index); // Returns the index of the last UTF8 character.
     size_t Utf8CharNextIndex(std::string_view sv, size_t index); // Returns the index of the next UTF8 character.
+
+    bool IsDigit(const std::string& str);
+    bool IsAlphaNumeric(const std::string& str);
 
     /**********************************************************
     *                        CONTEXT                          *
@@ -1378,7 +1391,7 @@ bool tuim::Button(const std::string& id, const std::string& text, tuim::ItemFlag
     return tuim::IsItemActive();
 }
 
-bool tuim::InputText(const std::string& id, std::string_view fmt, std::string* value, ItemFlags flags) {
+bool tuim::InputText(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags) {
     static size_t s_Cursor = value->length();
     
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
@@ -1389,7 +1402,7 @@ bool tuim::InputText(const std::string& id, std::string_view fmt, std::string* v
     item->m_Id = itemId;
     // item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
     item->m_Pos = frame->m_Cursor;
-    item->m_Flags = flags;
+    item->m_Flags = ITEM_FLAGS_STAY_ACTIVE;
     tuim::AddItem(item);
 
     bool hasChanged = false;
@@ -1409,7 +1422,8 @@ bool tuim::InputText(const std::string& id, std::string_view fmt, std::string* v
             if(s_Cursor < value->length()) {
                 size_t nextIndex = tuim::Utf8CharNextIndex(*value, s_Cursor);
                 *value = value->erase(s_Cursor, nextIndex - s_Cursor);
-                hasChanged = true;
+                if (!(flags & INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER))
+                    hasChanged = true;
             }
         }
         else if(tuim::IsKeyPressed(Key::BACKSPACE)) {
@@ -1417,16 +1431,23 @@ bool tuim::InputText(const std::string& id, std::string_view fmt, std::string* v
                 size_t lastIndex = tuim::Utf8CharLastIndex(*value, s_Cursor);
                 *value = value->erase(lastIndex, s_Cursor - lastIndex);
                 s_Cursor = lastIndex;
-                hasChanged = true;
+                if (!(flags & INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER))
+                    hasChanged = true;
             }
         }
         else {
             char32_t keyCode = ctx->m_PressedKeyCode;
-            if(tuim::IsPrintable(keyCode)) {
+            if(keyCode != 0 && tuim::IsPrintable(keyCode)) {
                 std::string ch = tuim::Utf8Char32ToString(keyCode);
-                value->insert(s_Cursor, ch);
-                s_Cursor += ch.length();
-                hasChanged = true;
+
+                if((flags & INPUT_TEXT_FLAGS_NUMERIC_ONLY && tuim::IsDigit(ch))
+                || (flags & INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY && tuim::IsAlphaNumeric(ch))
+                || !(flags & (INPUT_TEXT_FLAGS_NUMERIC_ONLY | INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY))) {
+                    value->insert(s_Cursor, ch);
+                    s_Cursor += ch.length();
+                    if (!(flags & INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER))
+                        hasChanged = true;
+                }
             }
         }
     }
@@ -1613,6 +1634,21 @@ size_t tuim::Utf8CharNextIndex(std::string_view sv, size_t index) {
         index++;
     } while (index < n && (static_cast<unsigned char>(sv[index]) & UTF8_CONT_MASK) == UTF8_CONT_TAG);
     return index;
+}
+
+bool tuim::IsDigit(const std::string& str) {
+    auto it = str.begin();
+    while (it != str.end() && std::isdigit(*it)) ++it;
+    return !str.empty() && it == str.end();
+}
+
+bool tuim::IsAlphaNumeric(const std::string& str) {
+    auto it = str.begin();
+    while (it != str.end() && (std::isdigit(*it)
+        || ('a' < (*it) && (*it) < 'z')
+        || ('A' < (*it) && (*it) < 'Z')
+    )) it++;
+    return !str.empty() && it == str.end();
 }
 
 /**********************************************************

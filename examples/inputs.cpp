@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
         tuim::Print("#_0000ffThis has a blue background.&r\n");
         tuim::Print("##This has a blue background.&r\n");
 
-        if (tuim::InputText("#input1", "Username: {}", &input1)) {
+        if (tuim::InputText("#input1", "Username: {}", &input1, tuim::INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER | tuim::INPUT_TEXT_FLAGS_NUMERIC_ONLY)) {
             tuim::Print(" Changed");
         }
         tuim::Print("\n");
