@@ -1515,6 +1515,10 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
             displayedValue += '#';
         if(tuim::IsItemActive() && sv == "&")
             displayedValue += '&';
+        if(sv == "{")
+            displayedValue += '{';
+        if(sv == "}")
+            displayedValue += '}';
 
         // Add cursor to be displayed.
         if(tuim::IsItemActive() && !tuim::IsKeyPressed() && s_Cursor == i) {

@@ -11,7 +11,7 @@ int main(int argc, char* argv[]) {
     tuim::SetFramerate(1.f);
 
     // Define global variables for each input.
-    std::string str1 = "abcdefg1234$*ù€_-{{}}[]";
+    std::string str1 = "abcdefg1234$*ù€_-{}[]";
     std::string str2 = "12345";
     std::string str3 = "abcdefg1234";
     int number1 = 10;
