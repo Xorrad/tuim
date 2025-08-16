@@ -16,6 +16,7 @@ int main(int argc, char* argv[]) {
     std::string str3 = "abcdefg1234";
     int number1 = 10;
     float number2 = 5.f;
+    bool boolean1 = false;
 
     // Start the main loop.
     char32_t keyCode = 0;
@@ -42,14 +43,20 @@ int main(int argc, char* argv[]) {
         }
         tuim::Print("\n");
         
+        // Display a checkbox.
+        if (tuim::Checkbox("#input4", "Checkbox: {}", &boolean1)) {
+            tuim::Print(" Changed");
+        }
+        tuim::Print("\n");
+
         // Display a integer slider with min, max, step and width (of the progress bar) parameters.
-        if (tuim::IntSlider("#input4", "Int: {} {}", &number1, 0, 50, 1, 50)) {
+        if (tuim::IntSlider("#input5", "Int: {} {}", &number1, 0, 50, 1, 50)) {
             tuim::Print(" Changed");
         }
         tuim::Print("\n");
         
         // Display a decimal slider with min, max, step and width (of the progress bar) parameters.
-        if (tuim::FloatSlider("#input5", "Float: {} {:.2f}", &number2, 0.f, 5.f, 0.01f, 50)) {
+        if (tuim::FloatSlider("#input6", "Float: {} {:.2f}", &number2, 0.f, 5.f, 0.01f, 50)) {
             tuim::Print(" Changed");
         }
         tuim::Print("\n");

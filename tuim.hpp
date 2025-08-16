@@ -422,7 +422,10 @@ namespace tuim {
 
     template <typename... Args> void Print(const std::string& fmt, Args&&... args); // Print a formatted string to the current frame.
     bool Button(const std::string& id, const std::string& text, ItemFlags flags = ITEM_FLAGS_NONE); // Print a button that can be pressed.
+    
     bool TextInput(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags = INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER); // Print an string input.
+    bool Checkbox(const std::string& id, std::string_view fmt, bool* value); // Prints a checkbox
+
     bool IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step = 1, int width = 100); // Print an integer slider.
     bool FloatSlider(const std::string& id, std::string_view fmt, float* value, float min, float max, float step = 0.01, int width = 100); // Print a float number slider.
 
@@ -1534,6 +1537,39 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
     displayedValue += "&r";
 
     std::string text = std::vformat(fmt, std::make_format_args(displayedValue));
+    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+
+    // Display the actual input text.
+    tuim::Print(text);
+
+    return hasChanged;
+}
+
+bool tuim::Checkbox(const std::string& id, std::string_view fmt, bool* value) {
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Create a new item and push it to the stack.
+    ItemId itemId = tuim::StringToId(id);
+    std::shared_ptr<Item> item = std::make_shared<Item>();
+    item->m_Id = itemId;
+    // item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    item->m_Pos = frame->m_Cursor;
+    item->m_Flags = ITEM_FLAGS_NONE;
+    tuim::AddItem(item);
+
+    bool hasChanged = false;
+        
+    if(tuim::IsItemHovered()) {
+        if(tuim::IsKeyPressed(Key::ENTER)) {
+            *value = !*value;
+            hasChanged = true;
+            tuim::SetActiveItemId(item->m_Id);
+        }
+        tuim::Print("[x] ");
+    }
+    else tuim::Print("[ ] ");
+
+    std::string text = std::vformat(fmt, std::make_format_args((*value ? "✔" : "✗")));
     item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
 
     // Display the actual input text.
