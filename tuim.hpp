@@ -65,6 +65,7 @@ namespace tuim {
     using ItemFlags = uint32_t;
     using ContainerFlags = uint32_t;
     using InputTextFlags = uint32_t;
+    using ImageFlags = uint32_t;
 
     /***********************************************************
     *                           MATH                           *
@@ -286,6 +287,12 @@ namespace tuim {
         INPUT_TEXT_FLAGS_NUMERIC_ONLY = 1 << 1,
         INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY = 1 << 2,
     };
+    
+    enum ImageFlags_ : uint32_t {
+        IMAGE_FLAGS_NONE = 0,
+        IMAGE_FLAGS_CLICKABLE = 1 << 0,
+        IMAGE_FLAGS_BORDERLESS = 1 << 1,
+    };
 
     /***********************************************************
     *                   CONTEXT FUNCTIONS                      *
@@ -424,10 +431,12 @@ namespace tuim {
     bool Button(const std::string& id, const std::string& text, ItemFlags flags = ITEM_FLAGS_NONE); // Print a button that can be pressed.
     
     bool TextInput(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags = INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER); // Print an string input.
-    bool Checkbox(const std::string& id, std::string_view fmt, bool* value); // Prints a checkbox
+    bool Checkbox(const std::string& id, std::string_view fmt, bool* value); // Print a checkbox
 
     bool IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step = 1, int width = 100); // Print an integer slider.
     bool FloatSlider(const std::string& id, std::string_view fmt, float* value, float min, float max, float step = 0.01, int width = 100); // Print a float number slider.
+    
+    bool Image(const std::string& id, const std::vector<std::string>& lines, ImageFlags flags = IMAGE_FLAGS_NONE); // Print an ascii art image in the form of a vector of strings.
 
     /***********************************************************
     *                    STRING FUNCTIONS                      *
@@ -1690,6 +1699,56 @@ bool tuim::FloatSlider(const std::string& id, std::string_view fmt, float* value
     item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
     
     tuim::Print(text);
+
+    return hasChanged;
+}
+
+bool tuim::Image(const std::string& id, const std::vector<std::string>& lines, ImageFlags flags) {
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Create a new item and push it to the stack.
+    ItemId itemId = tuim::StringToId(id);
+    std::shared_ptr<Item> item = std::make_shared<Item>();
+    item->m_Id = itemId;
+    item->m_Pos = frame->m_Cursor;
+    item->m_Size = vec2(0, lines.size());
+    item->m_Flags = (flags & IMAGE_FLAGS_CLICKABLE) ? ITEM_FLAGS_NONE : ITEM_FLAGS_DISABLED;
+    tuim::AddItem(item);
+
+    bool hasChanged = false;
+    bool hasContainer = (flags & IMAGE_FLAGS_CLICKABLE);
+    bool displayEmptyBorder = (hasContainer && !(flags & IMAGE_FLAGS_BORDERLESS) && !tuim::IsItemHovered());
+
+    if (tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {
+        hasChanged = true;
+    }
+
+    // Loop over the lines to determine the maximum width of the image.
+    // TODO: avoid looping twice over the lines.
+    for (const std::string& line : lines) {
+        if (item->m_Size.x < line.length())
+            item->m_Size.x = line.length();
+    }
+
+    if (hasContainer) {
+        tuim::BeginContainer(
+            id + "-container",
+            "",
+            vec2(item->m_Size.x+2, item->m_Size.y+2),
+            (flags & IMAGE_FLAGS_BORDERLESS || !tuim::IsItemHovered()) ? CONTAINER_FLAGS_BORDERLESS : CONTAINER_FLAGS_NONE
+        );
+    }
+
+    if (displayEmptyBorder) tuim::Print("\n");
+    for (const std::string& line : lines) {
+        if (displayEmptyBorder) tuim::Print(" ");
+        tuim::Print(line + "\n");
+    }
+    if (displayEmptyBorder) tuim::Print("\n");
+
+    if (hasContainer) {
+        tuim::EndContainer();
+    }
 
     return hasChanged;
 }

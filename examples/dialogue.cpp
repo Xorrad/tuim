@@ -3,7 +3,7 @@
 
 SignalHandler signalHandler;
 
-const std::vector<std::string> portait1 = {
+const std::vector<std::string> portrait1 = {
     "       ███▓▓██▓▓█▓██                 ",
     "     ████████████▓▓▓█▓▓              ",
     "     ██████████▒▒▓█▓▓▓█              ",
@@ -24,7 +24,7 @@ const std::vector<std::string> portait1 = {
     "          ███████████████████████████",
 };
 
-const std::vector<std::string> portait2 = {
+const std::vector<std::string> portrait2 = {
     "                 ██▓▓▒▒▓▒░   █                    ",
     "                 ▓░█▓ ▓▓▒▒▓████░                  ",
     "                 ▒ ▒█░▒▓█████ █                   ",
@@ -70,8 +70,7 @@ int main(int argc, char* argv[]) {
         tuim::vec2 size = tuim::Terminal::GetTerminalSize();
         tuim::Print("terminal size: {} {}\n", size.x, size.y);
         
-        for (const std::string& str : portait2)
-            tuim::Print(str + "\n");
+        tuim::Image("#portrait", portrait2, tuim::IMAGE_FLAGS_CLICKABLE);
 
         tuim::BeginContainer("#container", "", tuim::vec2(100, 7));
         tuim::Print("   You know, Vito, when the cops found the truck, they didn’t ask why it was full of frozen lobsters… and I think that’s beautiful.\n\n");
