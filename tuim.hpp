@@ -1508,26 +1508,26 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
     std::string displayedValue = "#_555555";
     for (size_t i = 0; i < value->length();) {
         size_t charLength = tuim::Utf8CharLength((*value)[i]);
-        std::string_view sv = std::string_view(value->data()+i, charLength);
+        std::string ch = std::string(value->data()+i, charLength);
 
         // Escape tuim formatting.
-        if(tuim::IsItemActive() && sv == "#")
-            displayedValue += '#';
-        if(tuim::IsItemActive() && sv == "&")
-            displayedValue += '&';
-        if(sv == "{")
-            displayedValue += '{';
-        if(sv == "}")
-            displayedValue += '}';
+        if(tuim::IsItemActive() && ch == "#")
+            ch += '#';
+        if(tuim::IsItemActive() && ch == "&")
+            ch += '&';
+        if(ch == "{")
+            ch += '{';
+        if(ch == "}")
+            ch += '}';
 
         // Add cursor to be displayed.
         if(tuim::IsItemActive() && !tuim::IsKeyPressed() && s_Cursor == i) {
             displayedValue += "#_ffffff#555555";
-            displayedValue += sv;
+            displayedValue += ch;
             displayedValue += "&r#_555555";
         }
         else {
-            displayedValue += sv;
+            displayedValue += ch;
         }
 
         i += charLength;
