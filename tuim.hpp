@@ -460,6 +460,8 @@ namespace tuim {
     bool IsDigit(const std::string& str);
     bool IsAlphaNumeric(const std::string& str);
 
+    size_t CalcTextWidth(std::string_view sv);
+
     /**********************************************************
     *                        CONTEXT                          *
     **********************************************************/
@@ -1413,7 +1415,7 @@ bool tuim::Button(const std::string& id, const std::string& text, tuim::ItemFlag
     ItemId itemId = tuim::StringToId(id);
     std::shared_ptr<Item> item = std::make_shared<Item>();
     item->m_Id = itemId;
-    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    item->m_Size = vec2(tuim::CalcTextWidth(text), 1);
     item->m_Pos = frame->m_Cursor;
     item->m_Flags = flags;
     tuim::AddItem(item);
@@ -1551,7 +1553,7 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
     displayedValue += "&r";
 
     std::string text = std::vformat(fmt, std::make_format_args(displayedValue));
-    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    item->m_Size = vec2(tuim::CalcTextWidth(text), 1);
 
     // Display the actual input text.
     tuim::Print(text);
@@ -1584,7 +1586,7 @@ bool tuim::Checkbox(const std::string& id, std::string_view fmt, bool* value) {
     else tuim::Print("[ ] ");
 
     std::string text = std::vformat(fmt, std::make_format_args((*value ? "✔" : "✗")));
-    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    item->m_Size = vec2(tuim::CalcTextWidth(text), 1);
 
     // Display the actual input text.
     tuim::Print(text);
@@ -1641,7 +1643,7 @@ bool tuim::IntSlider(const std::string& id, std::string_view fmt, int* value, in
     // if(tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {}
 
     text = std::vformat(fmt, std::make_format_args(text, *value));
-    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    item->m_Size = vec2(tuim::CalcTextWidth(text), 1);
     
     tuim::Print(text);
 
@@ -1697,7 +1699,7 @@ bool tuim::FloatSlider(const std::string& id, std::string_view fmt, float* value
     // if(tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {}
 
     text = std::vformat(fmt, std::make_format_args(text, *value));
-    item->m_Size = vec2(text.size(), 1); // TODO: replace with CalcTextWidth().
+    item->m_Size = vec2(tuim::CalcTextWidth(text), 1);
     
     tuim::Print(text);
 
@@ -1727,8 +1729,9 @@ bool tuim::Image(const std::string& id, const std::vector<std::string>& lines, I
     // Loop over the lines to determine the maximum width of the image.
     // TODO: avoid looping twice over the lines.
     for (const std::string& line : lines) {
-        if (item->m_Size.x < line.length())
-            item->m_Size.x = line.length();
+        size_t lineWidth = tuim::CalcTextWidth(line);
+        if (item->m_Size.x < lineWidth)
+            item->m_Size.x = lineWidth;
     }
 
     if (hasContainer) {
@@ -1789,7 +1792,7 @@ void tuim::Paragraph(const std::string& id, const std::string& text, uint width)
         bool isEOL = lineCharLength > 0 && (lineCharLength + wordChLen) >= width;
 
         std::string word = text.substr(i, wordBytesLen);
-        wordChLen = word.length(); // TODO: replace with tuim::CalcTextWidth()
+        wordChLen = tuim::CalcTextWidth(word);
 
         // Handle the end of line (need at least one word).
         if(isEOL || lineBreak) {
@@ -1995,6 +1998,66 @@ bool tuim::IsAlphaNumeric(const std::string& str) {
         || ('A' < (*it) && (*it) < 'Z')
     )) it++;
     return !str.empty() && it == str.end();
+}
+
+size_t tuim::CalcTextWidth(std::string_view sv) {
+    // Keep two variables to keep track of the largest line if there are several.
+    size_t width = 0;
+    size_t maxWidth = 0;
+
+    bool escaped = false;
+
+    size_t i = 0;
+    while (i < sv.length()) {
+        char c = sv[i];
+        char cc = (i+1 < sv.length()) ? sv[i+1] : '\0';
+
+        // Skip color and style formatting tags.
+        if (!escaped) {
+            if (c == '#' || c == '&') {
+                // Escape the color code by repeating the same character.
+                if (cc == '#' || cc == '&') {
+                    escaped = true;
+                    i++;
+                    continue;
+                }
+                
+                // Make sure that it doesn't go beyond the string length.
+                size_t codeSize = 1 + (cc == '_') + (cc == '#' ? 6 : 1);
+                if (i + codeSize <= sv.length()) {
+                    i += codeSize;
+                    continue;
+                }
+            }
+        }
+        escaped = false;
+
+        // Handle regular characters (not style tags).
+        uint8_t charLength = tuim::Utf8CharLength(c);
+        if (charLength == 0 || i + charLength > sv.length()) {
+            // Invalid UTF-8 sequence, treat as single byte and advance.
+            charLength = 1;
+        }
+        char32_t ch = tuim::Utf8Decode(sv.data() + i, charLength);
+
+        // new line: check if it was the largest line.
+        if (ch == '\n') {
+            maxWidth = std::max(width, maxWidth);
+            width = 0;
+        }
+        // tab: increase width by 4.
+        else if (ch == '\t') {
+            width += 4;
+        }
+        else {
+            width += tuim::Utf8CharWidth(ch);
+        }
+
+        // Move to the next UTF-8 character
+        i += charLength;
+    }
+
+    return std::max(width, maxWidth);
 }
 
 /**********************************************************
