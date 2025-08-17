@@ -433,10 +433,11 @@ namespace tuim {
     bool TextInput(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags = INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER); // Print an string input.
     bool Checkbox(const std::string& id, std::string_view fmt, bool* value); // Print a checkbox
 
-    bool IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step = 1, int width = 100); // Print an integer slider.
+    bool IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step = 1, uint width = 100); // Print an integer slider.
     bool FloatSlider(const std::string& id, std::string_view fmt, float* value, float min, float max, float step = 0.01, int width = 100); // Print a float number slider.
     
     bool Image(const std::string& id, const std::vector<std::string>& lines, ImageFlags flags = IMAGE_FLAGS_NONE); // Print an ascii art image in the form of a vector of strings.
+    void Paragraph(const std::string& id, const std::string& text, uint width); // Print a paragraph with automatic line breaks and word spacing
 
     /***********************************************************
     *                    STRING FUNCTIONS                      *
@@ -1591,7 +1592,7 @@ bool tuim::Checkbox(const std::string& id, std::string_view fmt, bool* value) {
     return hasChanged;
 }
 
-bool tuim::IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step, int width) {
+bool tuim::IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step, uint width) {
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
 
     // Create a new item and push it to the stack.
@@ -1751,6 +1752,107 @@ bool tuim::Image(const std::string& id, const std::vector<std::string>& lines, I
     }
 
     return hasChanged;
+}
+
+void tuim::Paragraph(const std::string& id, const std::string& text, uint width) {
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Create a new item and push it to the stack.
+    ItemId itemId = tuim::StringToId(id);
+    std::shared_ptr<Item> item = std::make_shared<Item>();
+    item->m_Id = itemId;
+    item->m_Pos = frame->m_Cursor;
+    item->m_Size = vec2(0, 0);
+    item->m_Flags = ITEM_FLAGS_DISABLED;
+    tuim::AddItem(item);
+
+    size_t i = 0;
+    std::string line = "";
+    size_t lineCharLength = 0;
+    size_t lineBlankCount = 0;
+
+    bool lineBreak = false;
+
+    while(i < text.length()) {
+        size_t wordBytesLen = 0;
+        size_t wordChLen = 0;
+        size_t wordPos = i;
+
+        // Count byte and char length of next word (until end of text or space).
+        while(wordPos < text.length() && text[wordPos] != ' ' && text[wordPos] != '\n') {
+            wordBytesLen += tuim::Utf8CharLength(text[wordPos]);
+            wordChLen++;
+            wordPos = i + wordBytesLen;
+        }
+
+        bool skipNextLine = (wordPos < text.length() && text[wordPos] == '\n');
+        bool isEOL = lineCharLength > 0 && (lineCharLength + wordChLen) >= width;
+
+        std::string word = text.substr(i, wordBytesLen);
+        wordChLen = word.length(); // TODO: replace with tuim::CalcTextWidth()
+
+        // Handle the end of line (need at least one word).
+        if(isEOL || lineBreak) {
+
+            // Count the number of spaces/words for each line and find the number of blank missing to reach EOL.
+            // Distribute additional spaces between each words to fill the blank at EOL.
+            if(lineCharLength > 0) {
+                int diff = width - lineCharLength;
+                if(diff > 0 && !lineBreak && lineBlankCount > 0) {
+                    float step = (float) diff / (float) (lineBlankCount);
+                    int blank_count = 0;
+                    float acc = 0.f;
+                    while(blank_count < diff) {
+                        for(size_t k = 0; k < line.length(); k += tuim::Utf8CharLength(line[k])) {
+                            if(blank_count == diff)
+                                break;
+                            if(line[k] != ' ')
+                                continue;
+                            if(acc >= 1.f) {
+                                line.insert(k, 1, ' ');
+                                k++;
+                                blank_count++;
+                                acc -= 1.f;
+                            }
+                            acc += step;
+                        }
+                    }
+                }
+                tuim::Print(line);
+                // printf("\tdiff: %d ; step: %f ; acc: %f ; t: %d ; c: %d", diff, step, acc, lineBlankCount, blank_count);
+            }
+            
+            tuim::Print("\n");
+
+            line = "";
+            lineCharLength = 0;
+            lineBlankCount = 0;
+            lineBreak = false;
+        }
+
+        //Add a space between words.
+        if(lineCharLength > 0) {
+            line += " ";
+            lineCharLength++;
+            lineBlankCount++;
+        }
+
+        line += word;
+        lineCharLength += wordChLen;
+
+        if(skipNextLine)
+            lineBreak = true;
+
+        i = wordPos + 1;
+    }
+
+    if(lineCharLength > 0) {
+        tuim::Print(line);
+    }
+
+    tuim::Print("&r");
+    for(int i = 0; i < 1 + lineBreak; i++)
+        tuim::Print("\n");
 }
 
 /***********************************************************
