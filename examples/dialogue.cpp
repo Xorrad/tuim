@@ -72,8 +72,8 @@ int main(int argc, char* argv[]) {
         
         tuim::Image("#portrait", portrait2, tuim::IMAGE_FLAGS_CLICKABLE);
 
-        tuim::BeginContainer("#container", "", tuim::vec2(100, 7));
-        tuim::Print("   You know, Vito, when the cops found the truck, they didn’t ask why it was full of frozen lobsters… and I think that’s beautiful.\n\n");
+        tuim::BeginContainer("#container", "", tuim::vec2(100, 10));
+        tuim::Paragraph("#p1", "You know, Vito, when the cops found the truck, they didn’t ask why it was full of frozen lobsters… and I think that’s beautiful.\n\n", 100);
         tuim::Button("#b1", "Beautiful? Sal, that’s a miracle — and in our line of work, miracles come with invoices.\n");
         tuim::Button("#b2", "Yeah, but next time, maybe don’t hide the diamonds inside the lobsters.\n");
         tuim::Button("#b3", "That’s ’cause the cops know better than to ask questions they don’t want the answers to.\n");

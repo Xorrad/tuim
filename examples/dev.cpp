@@ -10,8 +10,8 @@ int main(int argc, char* argv[]) {
     tuim::SetFramerate(1.f);
 
     tuim::DefineStyle('b', tuim::Style::BOLD);        // &b for bold
-    tuim::DefineForeground('g', tuim::Color(0, 255, 0));     // &g for green foreground
-    tuim::DefineBackground('u', tuim::Color(0, 0, 128));     // &u for dark blue background (underline was 'u', changed to 'U' for example)
+    tuim::DefineColor('g', tuim::Color(0, 255, 0));     // &g for green foreground
+    tuim::DefineColor('u', tuim::Color(0, 0, 128));     // &u for dark blue background (underline was 'u', changed to 'U' for example)
     tuim::DefineStyle('U', tuim::Style::UNDERLINE);  // &U for underline
     tuim::DefineStyle('i', tuim::Style::ITALIC);     // &i for italic
     tuim::DefineStyle('l', tuim::Style::BLINKING);   // &l for blinking

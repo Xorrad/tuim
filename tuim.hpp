@@ -66,6 +66,7 @@ namespace tuim {
     using ContainerFlags = uint32_t;
     using InputTextFlags = uint32_t;
     using ImageFlags = uint32_t;
+    using AlignFlags = uint32_t;
 
     /***********************************************************
     *                           MATH                           *
@@ -293,6 +294,16 @@ namespace tuim {
         IMAGE_FLAGS_CLICKABLE = 1 << 0,
         IMAGE_FLAGS_BORDERLESS = 1 << 1,
     };
+    
+    enum AlignFlags_ : uint32_t {
+        ALIGN_NONE = 0,
+        ALIGN_LEFT = 1 << 0,
+        ALIGN_CENTER = 1 << 1,
+        ALIGN_RIGHT = 1 << 2,
+        ALIGN_TOP = 1 << 3,
+        ALIGN_MIDDLE = 1 << 4,
+        ALIGN_BOTTOM = 1 << 5,
+    };
 
     /***********************************************************
     *                   CONTEXT FUNCTIONS                      *
@@ -411,14 +422,16 @@ namespace tuim {
 
     class Container : public Item {
     public:
-        Container() : Item(), m_ContainerFlags(CONTAINER_FLAGS_NONE), m_Frame(nullptr) {}
+        Container() : Item(), m_ContainerFlags(CONTAINER_FLAGS_NONE), m_AlignFlags(ALIGN_NONE), m_Frame(nullptr) {}
+        Container(std::shared_ptr<Frame> frame, ContainerFlags flags = CONTAINER_FLAGS_NONE, AlignFlags align = ALIGN_NONE) : Item(), m_ContainerFlags(flags), m_AlignFlags(align), m_Frame(frame) {}
         ~Container() = default;
 
         ContainerFlags m_ContainerFlags;
+        AlignFlags m_AlignFlags;
         std::shared_ptr<Frame> m_Frame;
     };
 
-    void BeginContainer(std::string_view id, std::string_view label, vec2 size, ContainerFlags flags = CONTAINER_FLAGS_NONE);
+    void BeginContainer(std::string_view id, std::string_view label, vec2 size, ContainerFlags flags = CONTAINER_FLAGS_NONE, AlignFlags align = ALIGN_NONE);
     void EndContainer();
 
     void MergeContainer(std::shared_ptr<Container> container); // Merge a given container into the current context frame (can be global or another container).
@@ -471,8 +484,12 @@ namespace tuim {
         Context() {
             m_Framerate = 60.f;
             m_PressedKeyCode = 0;
+
             m_Frame = std::make_shared<Frame>();
             m_PrevFrame = nullptr;
+            m_DefaultContainer = std::make_shared<Container>(m_Frame, CONTAINER_FLAGS_BORDERLESS);
+            m_DefaultContainer->m_Size = tuim::Terminal::GetTerminalSize();
+            m_DefaultContainer->m_Pos = vec2(0, 0);
 
             m_HoveredItemId = 0;
             m_ActiveItemId = 0;
@@ -486,8 +503,9 @@ namespace tuim {
 
         float m_Framerate;
         char32_t m_PressedKeyCode;
-        std::shared_ptr<Frame> m_Frame; // Final screen frame that is going to be displayed to the screen
-        std::shared_ptr<Frame> m_PrevFrame; // Last displayed frame to compare with when building the new one
+        std::shared_ptr<Container> m_DefaultContainer; // Default container object that represents the screen frame.
+        std::shared_ptr<Frame> m_Frame; // Final screen frame that is going to be displayed to the screen.
+        std::shared_ptr<Frame> m_PrevFrame; // Last displayed frame to compare with when building the new one.
         std::vector<std::shared_ptr<Item>> m_ItemsOrdered; // Insertion order of items.
         std::unordered_map<ItemId, std::shared_ptr<Item>> m_Items; // Mapped addresses of the frame items.
         std::stack<ItemId> m_ContainersStack;
@@ -511,6 +529,7 @@ namespace tuim {
     void SetCurrentCursor(const vec2& cursor); // Changes the position of the current frame's cursor.
     vec2 GetCurrentCursor(); // Returns the currently active frame cursor (global or container...)
     std::shared_ptr<Frame> GetCurrentFrame(); // Returns the frame that is currently active (global or container...)
+    std::shared_ptr<Container> GetCurrentContainer(); // Returns the container that is currently active (if there isn't any, create an abstract on with the main frame).
 
     /***********************************************************
     *                    GLOBAL VARIABLES                      *
@@ -722,7 +741,7 @@ void tuim::DeleteContext() {
 }
 
 tuim::Context* tuim::GetCtx() {
-    if(tuim::ctx == nullptr)
+    if (tuim::ctx == nullptr)
         throw std::runtime_error("error: context is undefined.");
     return tuim::ctx;
 }
@@ -759,7 +778,7 @@ void tuim::Update(char32_t keyCode) {
     Context* ctx = tuim::GetCtx();
     ctx->m_PressedKeyCode = keyCode;
 
-    if(ctx->m_ActiveItemId == 0 || !(ctx->m_ItemsOrdered.at(tuim::GetItemIndex(ctx->m_ActiveItemId))->m_Flags & ITEM_FLAGS_STAY_ACTIVE)) {
+    if (ctx->m_ActiveItemId == 0 || !(ctx->m_ItemsOrdered.at(tuim::GetItemIndex(ctx->m_ActiveItemId))->m_Flags & ITEM_FLAGS_STAY_ACTIVE)) {
         ctx->m_LastActiveItemId = ctx->m_ActiveItemId;
         ctx->m_ActiveItemId = 0;
 
@@ -767,9 +786,9 @@ void tuim::Update(char32_t keyCode) {
         bool hasHoverable = tuim::HasHoverable();
 
         // Set the first hoverable item hovered if no item is
-        if(hoveredIndex == -1 && hasHoverable) {
+        if (hoveredIndex == -1 && hasHoverable) {
             for(size_t i = 0; i < ctx->m_ItemsOrdered.size(); i++) {
-                if(!(ctx->m_ItemsOrdered.at(i)->m_Flags & ITEM_FLAGS_DISABLED)) {
+                if (!(ctx->m_ItemsOrdered.at(i)->m_Flags & ITEM_FLAGS_DISABLED)) {
                     ctx->m_HoveredItemId = ctx->m_ItemsOrdered.at(i)->m_Id;
                     hoveredIndex = i;
                     break;
@@ -778,13 +797,13 @@ void tuim::Update(char32_t keyCode) {
         }
 
         // Move cursor to previous hoverable item
-        if(keyCode == Key::UP) {
-            if(hasHoverable) {
+        if (keyCode == Key::UP) {
+            if (hasHoverable) {
                 ItemId id = 0;
-                if(hoveredIndex != -1) {
+                if (hoveredIndex != -1) {
                     size_t index = std::max(0, hoveredIndex - 1);
                     while(index > 0 && (ctx->m_ItemsOrdered.at(index)->m_Flags & ITEM_FLAGS_DISABLED)) index--;
-                    if((ctx->m_ItemsOrdered.at(index)->m_Flags & ITEM_FLAGS_DISABLED)) index = hoveredIndex;
+                    if ((ctx->m_ItemsOrdered.at(index)->m_Flags & ITEM_FLAGS_DISABLED)) index = hoveredIndex;
                     id = ctx->m_ItemsOrdered.at(index)->m_Id;
                 }
                 ctx->m_HoveredItemId = id;
@@ -792,13 +811,13 @@ void tuim::Update(char32_t keyCode) {
         }
 
         // Move cursor to next hoverable item
-        if(keyCode == Key::DOWN) {
-            if(hasHoverable) {
+        if (keyCode == Key::DOWN) {
+            if (hasHoverable) {
                 ItemId id = 0;
-                if(hoveredIndex != -1) {
+                if (hoveredIndex != -1) {
                     size_t index = std::min(hoveredIndex + 1, (int) ctx->m_ItemsOrdered.size() - 1);
                     while(index < (ctx->m_ItemsOrdered.size() - 1) && (ctx->m_ItemsOrdered.at(index)->m_Flags) & ITEM_FLAGS_DISABLED) index++;
-                    if((ctx->m_ItemsOrdered.at(index)->m_Flags & ITEM_FLAGS_DISABLED)) index = hoveredIndex;
+                    if ((ctx->m_ItemsOrdered.at(index)->m_Flags & ITEM_FLAGS_DISABLED)) index = hoveredIndex;
                     id = ctx->m_ItemsOrdered.at(index)->m_Id;
                 }
                 ctx->m_HoveredItemId = id;
@@ -1067,7 +1086,7 @@ tuim::ItemId tuim::GetCurrentItemId() {
 uint32_t tuim::GetItemIndex(tuim::ItemId id) {
     Context* ctx = tuim::GetCtx();
     for(size_t i = 0; i < ctx->m_ItemsOrdered.size(); i++) {
-        if(ctx->m_ItemsOrdered.at(i)->m_Id == id) {
+        if (ctx->m_ItemsOrdered.at(i)->m_Id == id) {
             return i;
         }
     }
@@ -1107,7 +1126,7 @@ void tuim::SetHoveredItemId(ItemId id) {
 bool tuim::HasHoverable() {
     Context* ctx = tuim::GetCtx();
     for(size_t i = 0; i < ctx->m_ItemsOrdered.size(); i++) {
-        if(!(ctx->m_ItemsOrdered.at(i)->m_Flags & ITEM_FLAGS_DISABLED))
+        if (!(ctx->m_ItemsOrdered.at(i)->m_Flags & ITEM_FLAGS_DISABLED))
             return true;
     }
     return false;
@@ -1117,7 +1136,7 @@ bool tuim::HasHoverable() {
 *                       CONTAINERS                         *
 ***********************************************************/
 
-void tuim::BeginContainer(std::string_view id, std::string_view label, tuim::vec2 size, ContainerFlags flags) {
+void tuim::BeginContainer(std::string_view id, std::string_view label, tuim::vec2 size, ContainerFlags flags, AlignFlags align) {
     Context* ctx = tuim::GetCtx();
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
 
@@ -1131,6 +1150,7 @@ void tuim::BeginContainer(std::string_view id, std::string_view label, tuim::vec
     container->m_Id = itemId;
     container->m_Flags = ITEM_FLAGS_DISABLED;
     container->m_ContainerFlags = flags;
+    container->m_AlignFlags = align;
     container->m_Size = size;
     container->m_Pos = frame->m_Cursor;
     container->m_Frame = std::make_shared<Frame>(size);
@@ -1160,98 +1180,137 @@ void tuim::EndContainer() {
     tuim::MergeContainer(container);
 }
 
-void tuim::MergeContainer(std::shared_ptr<tuim::Container> container) {
-    std::shared_ptr<Frame> src = container->m_Frame;
-    std::shared_ptr<Frame> dst = tuim::GetCurrentFrame();
-    
-    bool hasBorder = !(container->m_ContainerFlags & CONTAINER_FLAGS_BORDERLESS);
+void tuim::MergeContainer(std::shared_ptr<tuim::Container> srcContainer) {
+    // Get the container that the source will merge into.
+    // If the containers stack is empty, an abstract container representing
+    // the main/global frame will be returned with CONTAINER_FLAGS_BORDERLESS flags and align properties.
+    std::shared_ptr<Container> dstContainer = tuim::GetCurrentContainer();
 
+    std::shared_ptr<Frame> src = srcContainer->m_Frame;
+    std::shared_ptr<Frame> dst = dstContainer->m_Frame;
+
+    // --------------------------------------------------  dst
+    // |                                                |
+    // | o-------------------------------  src          |
+    // | |x                             |               |
+    // | |                              |               |
+    // | |                              |               |
+    // | |                              |               |
+    // | |                              |               |
+    // | |                              |               |
+    // | |                              |               |
+    // | --------------------------------               |
+    // |                                                |
+    // --------------------------------------------------
+    // o: origin (position of the src in the dst)
+    // x: origin border excluded (position at which src cells will be drawn).
+
+    // 1. Skip everything if the src or dst container are empty.
+    if (srcContainer->m_Size.x <= 0 || srcContainer->m_Size.y <= 0 || dstContainer->m_Size.x <= 0 || dstContainer->m_Size.y <= 0) {
+        dst->m_Cursor = vec2(dst->m_Cursor.x + srcContainer->m_Size.x, dst->m_Cursor.y + srcContainer->m_Size.y);
+        return;
+    }
+
+    // 2. Determine origin and define constants.
+
+    // Size of the src container (includes the borders).
+    // Substract 1 because the origin is inside the container (1 width from 0 should stops at 0).
+    int srcWidth = std::max(0, srcContainer->m_Size.x - 1);
+    int srcHeight = std::max(0, srcContainer->m_Size.y - 1);
+
+    // Size of the dst container.
+    // Note: the frame might not be that exact size, so we have to make sure 
+    //       that we aren't going out of bounds when writing cells.
+    int dstWidth = std::max(0, dstContainer->m_Size.x);
+    int dstHeight = std::max(0, dstContainer->m_Size.y);
+
+    // The border is included in the container's size, it only shift
+    // where we start copying the frame cells by one.
+    bool hasBorder = !(srcContainer->m_ContainerFlags & CONTAINER_FLAGS_BORDERLESS);
+
+    // Determine the origin: position at which the src frame will be drawn in the dstFrame.
     vec2 origin = dst->m_Cursor;
 
-    // Relative heights of the frames.
-    size_t dstHeight = dst->m_Cells.size() - origin.y;
+    // The origin is by default at the dst frame cursor but changes depending on the dst alignment.
+    AlignFlags dstAlign = dstContainer->m_AlignFlags;
+    if (dstAlign & ALIGN_LEFT) origin.x = 0;
+    else if (dstAlign & ALIGN_CENTER) origin.x = dstWidth/2 - (srcWidth+1+2*hasBorder)/2;
+    else if (dstAlign & ALIGN_RIGHT) origin.x = dstWidth - (srcWidth+1+2*hasBorder);
+    if (dstAlign & ALIGN_TOP) origin.y = 0;
+    else if (dstAlign & ALIGN_MIDDLE) origin.y = dstHeight/2 - (srcHeight+1+2*hasBorder)/2;
+    else if (dstAlign & ALIGN_BOTTOM) origin.y = dstHeight - (srcHeight+1+2*hasBorder);
 
-    // Size of the source container, including the borders.
-    size_t containerWidth = container->m_Size.x;
-    size_t containerHeight = container->m_Size.y;
+    // Final position of the container relative to the origin.
+    vec2 end = vec2(origin.x + srcWidth, origin.y + srcHeight);
 
-    auto GetRowSize = [&](int y) { return dst->m_Cells[y].size(); };
-    auto SetCell = [&](int x, int y, char32_t ch) { dst->m_Cells[y][x] = std::make_shared<Cell>(ch); };
+    // Origin at which the actual src frame content will be drawn (i.e border excluded).
+    vec2 originBorderless = vec2(origin.x + hasBorder, origin.y + hasBorder);
 
-    // Don't display no-width or no-height containers but move the cursors regardless.
-    if (container->m_Size.x > 0 && container->m_Size.y > 0) {
-        // Surround the container frame with a border if it does not have the borderless flags.
-        if (hasBorder) {
-            // TODO: check for pre-existing borders.
+    #define ROW_SIZE(row) dst->m_Cells[row].size()
+    #define SET_CELL(x, y, ch) dst->m_Cells[y][x] = std::make_shared<Cell>(ch)
 
-            // Coordinates of the end of the src container (origin + size).
-            size_t maxX = origin.x + containerWidth - 1;
-            size_t maxY = origin.y + containerHeight - 1;
+    // 3. Draw the border directly onto the dst frame (if not borderless).
+    if (hasBorder) {
+        bool canPrintFirstRow = (origin.y >= 0) && (origin.y < dstHeight);
+        bool canPrintLastRow = (end.y >= 0) && (end.y < dstHeight);
 
-            bool canWriteFirstRow = dstHeight >= 1;
-            bool canWriteLastRow = dstHeight >= containerHeight;
+        // Draw the border corners: +      +
+        //                            
+        //                          +      +
+        if (canPrintFirstRow && origin.x < ROW_SIZE(origin.y)) SET_CELL(origin.x, origin.y, U'+'); // top left corner
+        if (canPrintFirstRow && end.x < ROW_SIZE(origin.y)) SET_CELL(end.x, origin.y, U'+'); // top right corner
+        if (canPrintLastRow && origin.x < ROW_SIZE(end.y)) SET_CELL(origin.x, end.y, U'+'); // bottom left corner
+        if (canPrintLastRow && end.x < ROW_SIZE(end.y)) SET_CELL(end.x, end.y, U'+'); // bottom right corner
 
-            // Draw top-left corner.
-            if (canWriteFirstRow && GetRowSize(origin.y) > origin.x)
-                SetCell(origin.x, origin.y, U'+');
-
-            // Draw top-right corner.
-            if (canWriteFirstRow && GetRowSize(origin.y) > maxX)
-                SetCell(maxX, origin.y, U'+');
-
-            // Draw bottom-left corner.
-            if (canWriteLastRow && GetRowSize(maxY) > origin.x)
-                SetCell(origin.x, maxY, U'+');
-
-            // Draw bottom-right corner.
-            if (canWriteLastRow && GetRowSize(maxY) > maxX)
-                SetCell(maxX, maxY, U'+');
-
-            // Draw top and bottom borders.
-            for (size_t x = 1; x < containerWidth-1; x++) {
-                if (canWriteFirstRow && GetRowSize(origin.y) > origin.x + x)
-                    SetCell(origin.x + x, origin.y, U'-');
-                if (canWriteLastRow && GetRowSize(maxY) > origin.x + x)
-                    SetCell(origin.x + x, maxY, U'-');
-            }
-            
-            // Draw left and right borders.
-            for (size_t y = 1; y < containerHeight-1; y++) {
-                if (dstHeight > y && GetRowSize(origin.y + y) > origin.x)
-                    SetCell(origin.x, origin.y + y, U'|');
-                if (dstHeight > y && GetRowSize(origin.y + y) > maxX)
-                    SetCell(maxX, origin.y + y, U'|');
-            }
+        // Draw the border horizontal lines: +-------+
+        //                            
+        //                                   +-------+
+        for (size_t x = 1; x < srcWidth; x++) {
+            if (canPrintFirstRow && origin.x + x < ROW_SIZE(origin.y)) SET_CELL(origin.x + x, origin.y, U'-'); // top border
+            if (canPrintLastRow && origin.x + x < ROW_SIZE(end.y)) SET_CELL(origin.x + x, end.y, U'-'); // bottom border
         }
+        
+        // Draw the border vertical lines: +-------+
+        //                                 |       |
+        //                                 +-------+
+        for (int y = 1; y < srcHeight; y++) {
+            int oy = origin.y + y;
+            if (oy < 0 || oy >= dst->m_Cells.size()) continue;
+            if (origin.x >= 0 && origin.x < ROW_SIZE(oy)) SET_CELL(origin.x, oy, U'|'); // left border
+            if (end.x >= 0 && end.x < ROW_SIZE(oy)) SET_CELL(end.x, oy, U'|'); // right border
+        }
+    }
 
-        // Move the origin to not overwrite the border.
-        vec2 contentOrigin = vec2(origin.x + hasBorder, origin.y + hasBorder);
+    // 4. Copy the content of src frame to dst frame.
 
-        // Parse to int and size_t in order to have negatives and return 0.
-        size_t minY = std::min({
-            (size_t) std::max(0, (int) containerHeight - 2*hasBorder), // Height of the container (without borders).
-            src->m_Cells.size(), // Height of source frame.
-            (size_t) std::max(0, (int) dst->m_Cells.size() - contentOrigin.y) // Relative height of dest frame.
+    // Determine how many lines we can copy without stepping out of bounds.
+    size_t maxY = std::min({
+        (size_t) std::max(0, (int) srcHeight + 1 - 2*hasBorder), // Height of the src container (borders excluded).
+        (size_t) std::max(0, (int) dst->m_Cells.size() - originBorderless.y), // Relative height of dst frame.
+        src->m_Cells.size() // Height of the src frame.
+    });
+
+    for (size_t y = 0; y < maxY; y++) {
+        if (originBorderless.y + y < 0) continue;
+        if (originBorderless.y + y >= dst->m_Cells.size()) continue;
+
+        // Determine how many cells we can copy without stepping out of bounds.
+        size_t maxX = std::min({
+            (size_t) std::max(0, (int) srcWidth + 1 - 2*hasBorder), // Width of the src container (borders excluded).
+            (size_t) std::max(0, (int) ROW_SIZE(originBorderless.y + y) - originBorderless.x), // Relative width of dst frame.
+            src->m_Cells[y].size() // Width of the src frame.
         });
 
-        // Merge source frame characters into the dest frame.
-        for (size_t y = 0; y < minY; y++) {
-            
-            // Parse to int and size_t in order to have negatives and return 0.
-            size_t minX = std::min({
-                (size_t) std::max(0, (int) containerWidth - 2*hasBorder), // Width of the container (without borders).
-                src->m_Cells[y].size(), // Width of source frame.
-                (size_t) std::max(0, (int) dst->m_Cells[contentOrigin.y + y].size() - contentOrigin.x) // Relative width of dest frame.
-            });
-
-            for (size_t x = 0; x < minX; x++) {
-                dst->m_Cells[contentOrigin.y + y][contentOrigin.x + x] = src->m_Cells[y][x];
-            }
+        // TODO: avoid size_t because it overflows when originBorderless is negative (e.g centered with large width).
+        for (size_t x = 0; x < maxX; x++) {
+            if (originBorderless.x + x < 0) continue;
+            if (originBorderless.x + x >= ROW_SIZE(originBorderless.y + y)) continue;
+            dst->m_Cells[originBorderless.y + y][originBorderless.x + x] = src->m_Cells[y][x];
         }
     }
 
     // Move the dest frame cursor to not overwrite when printing characters after merging.
-    dst->m_Cursor = vec2(origin.x, origin.y + containerHeight);
+    dst->m_Cursor = vec2(origin.x, origin.y + srcHeight);
 }
 
 /***********************************************************
@@ -1420,8 +1479,8 @@ bool tuim::Button(const std::string& id, const std::string& text, tuim::ItemFlag
     item->m_Flags = flags;
     tuim::AddItem(item);
 
-    if(tuim::IsItemHovered()) {
-        if(tuim::IsKeyPressed(Key::ENTER)) {
+    if (tuim::IsItemHovered()) {
+        if (tuim::IsKeyPressed(Key::ENTER)) {
             tuim::SetActiveItemId(item->m_Id);
         }
         tuim::Print("[x] ");
@@ -1450,31 +1509,31 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
     bool hasChanged = false;
 
     // Handle keyboard inputs to change text, move cursor...
-    if(tuim::IsItemActive()) {
+    if (tuim::IsItemActive()) {
         // Make sure that the cursor doesn't go out of range, especially
         // when switching between different text inputs.
         if (s_Cursor > value->length())
             s_Cursor = value->length();
 
-        if(tuim::IsKeyPressed(Key::ESCAPE)) {
+        if (tuim::IsKeyPressed(Key::ESCAPE)) {
             tuim::SetActiveItemId(0);
         }
-        else if(tuim::IsKeyPressed(Key::LEFT)) {
+        else if (tuim::IsKeyPressed(Key::LEFT)) {
             s_Cursor = tuim::Utf8CharLastIndex(*value, s_Cursor);
         }
-        else if(tuim::IsKeyPressed(Key::RIGHT)) {
+        else if (tuim::IsKeyPressed(Key::RIGHT)) {
             s_Cursor = tuim::Utf8CharNextIndex(*value, s_Cursor);
         }
-        else if(tuim::IsKeyPressed(Key::DELETE)) {
-            if(s_Cursor < value->length()) {
+        else if (tuim::IsKeyPressed(Key::DELETE)) {
+            if (s_Cursor < value->length()) {
                 size_t nextIndex = tuim::Utf8CharNextIndex(*value, s_Cursor);
                 *value = value->erase(s_Cursor, nextIndex - s_Cursor);
                 if (!(flags & INPUT_TEXT_FLAGS_CONFIRM_ON_ENTER))
                     hasChanged = true;
             }
         }
-        else if(tuim::IsKeyPressed(Key::BACKSPACE)) {
-            if(s_Cursor > 0) {
+        else if (tuim::IsKeyPressed(Key::BACKSPACE)) {
+            if (s_Cursor > 0) {
                 size_t lastIndex = tuim::Utf8CharLastIndex(*value, s_Cursor);
                 *value = value->erase(lastIndex, s_Cursor - lastIndex);
                 s_Cursor = lastIndex;
@@ -1484,10 +1543,10 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
         }
         else {
             char32_t keyCode = ctx->m_PressedKeyCode;
-            if(keyCode != 0 && tuim::IsPrintable(keyCode)) {
+            if (keyCode != 0 && tuim::IsPrintable(keyCode)) {
                 std::string ch = tuim::Utf8Char32ToString(keyCode);
 
-                if((flags & INPUT_TEXT_FLAGS_NUMERIC_ONLY && tuim::IsDigit(ch))
+                if ((flags & INPUT_TEXT_FLAGS_NUMERIC_ONLY && tuim::IsDigit(ch))
                 || (flags & INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY && tuim::IsAlphaNumeric(ch))
                 || !(flags & (INPUT_TEXT_FLAGS_NUMERIC_ONLY | INPUT_TEXT_FLAGS_ALPHANUMERIC_ONLY))) {
                     value->insert(s_Cursor, ch);
@@ -1499,8 +1558,8 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
         }
     }
         
-    if(tuim::IsItemHovered()) {
-        if(tuim::IsKeyPressed(Key::ENTER)) {
+    if (tuim::IsItemHovered()) {
+        if (tuim::IsKeyPressed(Key::ENTER)) {
             if (tuim::IsItemActive()) {
                 tuim::SetActiveItemId(0);
                 hasChanged = true;
@@ -1523,17 +1582,17 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
         std::string ch = std::string(value->data()+i, charLength);
 
         // Escape tuim formatting.
-        if(tuim::IsItemActive() && ch == "#")
+        if (tuim::IsItemActive() && ch == "#")
             ch += '#';
-        if(tuim::IsItemActive() && ch == "&")
+        if (tuim::IsItemActive() && ch == "&")
             ch += '&';
-        if(ch == "{")
+        if (ch == "{")
             ch += '{';
-        if(ch == "}")
+        if (ch == "}")
             ch += '}';
 
         // Add cursor to be displayed.
-        if(tuim::IsItemActive() && !tuim::IsKeyPressed() && s_Cursor == i) {
+        if (tuim::IsItemActive() && !tuim::IsKeyPressed() && s_Cursor == i) {
             displayedValue += "#_ffffff#555555";
             displayedValue += ch;
             displayedValue += "&r#_555555";
@@ -1546,7 +1605,7 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
     }
 
     // Add cursor if it is at the end the text.
-    if(tuim::IsItemActive() && !tuim::IsKeyPressed() && s_Cursor >= value->length())
+    if (tuim::IsItemActive() && !tuim::IsKeyPressed() && s_Cursor >= value->length())
         displayedValue += "#_ffffff ";
 
     // Reset any styles after the input text.
@@ -1575,8 +1634,8 @@ bool tuim::Checkbox(const std::string& id, std::string_view fmt, bool* value) {
 
     bool hasChanged = false;
         
-    if(tuim::IsItemHovered()) {
-        if(tuim::IsKeyPressed(Key::ENTER)) {
+    if (tuim::IsItemHovered()) {
+        if (tuim::IsKeyPressed(Key::ENTER)) {
             *value = !*value;
             hasChanged = true;
             tuim::SetActiveItemId(item->m_Id);
@@ -1607,16 +1666,16 @@ bool tuim::IntSlider(const std::string& id, std::string_view fmt, int* value, in
 
     bool hasChanged = false;
         
-    if(tuim::IsItemHovered()) {
-        if(tuim::IsKeyPressed(Key::LEFT)) {
+    if (tuim::IsItemHovered()) {
+        if (tuim::IsKeyPressed(Key::LEFT)) {
             *value = std::max(min, *value - step);
             hasChanged = true;
         }
-        else if(tuim::IsKeyPressed(Key::RIGHT)) {
+        else if (tuim::IsKeyPressed(Key::RIGHT)) {
             *value = std::min(max, *value + step);
             hasChanged = true;
         }
-        else if(tuim::IsKeyPressed(Key::ENTER)) {
+        else if (tuim::IsKeyPressed(Key::ENTER)) {
             if (tuim::IsItemActive()) {
                 tuim::SetActiveItemId(0);
                 hasChanged = true;
@@ -1634,13 +1693,13 @@ bool tuim::IntSlider(const std::string& id, std::string_view fmt, int* value, in
     text += "#555555";
     float prct = ((float) (*value - min) / (float) (max-min))*width;
     for(int t = 0; t < width; t++) {
-        if(t >= prct) text += "&r";
+        if (t >= prct) text += "&r";
         text += "█";
     }
     text += "&r";
 
     // TODO: use a static variable to change the value manually.
-    // if(tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {}
+    // if (tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {}
 
     text = std::vformat(fmt, std::make_format_args(text, *value));
     item->m_Size = vec2(tuim::CalcTextWidth(text), 1);
@@ -1663,16 +1722,16 @@ bool tuim::FloatSlider(const std::string& id, std::string_view fmt, float* value
 
     bool hasChanged = false;
         
-    if(tuim::IsItemHovered()) {
-        if(tuim::IsKeyPressed(Key::LEFT)) {
+    if (tuim::IsItemHovered()) {
+        if (tuim::IsKeyPressed(Key::LEFT)) {
             *value = std::max(min, *value - step);
             hasChanged = true;
         }
-        else if(tuim::IsKeyPressed(Key::RIGHT)) {
+        else if (tuim::IsKeyPressed(Key::RIGHT)) {
             *value = std::min(max, *value + step);
             hasChanged = true;
         }
-        else if(tuim::IsKeyPressed(Key::ENTER)) {
+        else if (tuim::IsKeyPressed(Key::ENTER)) {
             if (tuim::IsItemActive()) {
                 tuim::SetActiveItemId(0);
                 hasChanged = true;
@@ -1690,13 +1749,13 @@ bool tuim::FloatSlider(const std::string& id, std::string_view fmt, float* value
     text += "#555555";
     float prct = ((float) (*value - min) / (float) (max-min))*width;
     for(int t = 0; t < width; t++) {
-        if(t >= prct) text += "&r";
+        if (t >= prct) text += "&r";
         text += "█";
     }
     text += "&r";
 
     // TODO: use a static variable to change the value manually.
-    // if(tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {}
+    // if (tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {}
 
     text = std::vformat(fmt, std::make_format_args(text, *value));
     item->m_Size = vec2(tuim::CalcTextWidth(text), 1);
@@ -1795,23 +1854,23 @@ void tuim::Paragraph(const std::string& id, const std::string& text, uint width)
         wordChLen = tuim::CalcTextWidth(word);
 
         // Handle the end of line (need at least one word).
-        if(isEOL || lineBreak) {
+        if (isEOL || lineBreak) {
 
             // Count the number of spaces/words for each line and find the number of blank missing to reach EOL.
             // Distribute additional spaces between each words to fill the blank at EOL.
-            if(lineCharLength > 0) {
+            if (lineCharLength > 0) {
                 int diff = width - lineCharLength;
-                if(diff > 0 && !lineBreak && lineBlankCount > 0) {
+                if (diff > 0 && !lineBreak && lineBlankCount > 0) {
                     float step = (float) diff / (float) (lineBlankCount);
                     int blank_count = 0;
                     float acc = 0.f;
                     while(blank_count < diff) {
                         for(size_t k = 0; k < line.length(); k += tuim::Utf8CharLength(line[k])) {
-                            if(blank_count == diff)
+                            if (blank_count == diff)
                                 break;
-                            if(line[k] != ' ')
+                            if (line[k] != ' ')
                                 continue;
-                            if(acc >= 1.f) {
+                            if (acc >= 1.f) {
                                 line.insert(k, 1, ' ');
                                 k++;
                                 blank_count++;
@@ -1834,7 +1893,7 @@ void tuim::Paragraph(const std::string& id, const std::string& text, uint width)
         }
 
         //Add a space between words.
-        if(lineCharLength > 0) {
+        if (lineCharLength > 0) {
             line += " ";
             lineCharLength++;
             lineBlankCount++;
@@ -1843,13 +1902,13 @@ void tuim::Paragraph(const std::string& id, const std::string& text, uint width)
         line += word;
         lineCharLength += wordChLen;
 
-        if(skipNextLine)
+        if (skipNextLine)
             lineBreak = true;
 
         i = wordPos + 1;
     }
 
-    if(lineCharLength > 0) {
+    if (lineCharLength > 0) {
         tuim::Print(line);
     }
 
@@ -2117,6 +2176,23 @@ std::shared_ptr<tuim::Frame> tuim::GetCurrentFrame() {
     if (it == ctx->m_Items.end())
         throw std::out_of_range("error: undefined container from stack.");
     return std::dynamic_pointer_cast<Container>(it->second)->m_Frame;
+}
+
+std::shared_ptr<tuim::Container> tuim::GetCurrentContainer() {
+    Context* ctx = tuim::GetCtx();
+    if (ctx->m_ContainersStack.empty()) {
+        // Make sure that the container's frame is the current screen frame,
+        // and that it has the right size.
+        ctx->m_DefaultContainer->m_Frame = ctx->m_Frame;
+        ctx->m_DefaultContainer->m_Size = tuim::Terminal::GetTerminalSize();
+        ctx->m_DefaultContainer->m_Pos = vec2(0, 0);
+        return ctx->m_DefaultContainer;
+    }
+    ItemId itemId = ctx->m_ContainersStack.top();
+    auto it = ctx->m_Items.find(itemId);
+    if (it == ctx->m_Items.end())
+        throw std::out_of_range("error: undefined container from stack.");
+    return std::dynamic_pointer_cast<Container>(it->second);
 }
 
 #endif // TUIM_HPP
