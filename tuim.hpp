@@ -7,6 +7,8 @@
 *                                                                           *
 ****************************************************************************/
 
+#pragma once
+
 #ifndef TUIM_HPP
 #define TUIM_HPP
 
@@ -79,29 +81,29 @@ namespace tuim {
         vec2(int x, int y) : x(x), y(y) {}
         ~vec2() = default;
 
-        bool operator==(const vec2 &other) const {
+        inline bool operator==(const vec2 &other) const {
             return x == other.x && y == other.y;
         }
 
-        bool operator!=(const vec2 &other) const {
+        inline bool operator!=(const vec2 &other) const {
             return x != other.x || y != other.y;
         }
 
-        vec2 operator+(const vec2 &other) const {
+        inline vec2 operator+(const vec2 &other) const {
             return vec2(x + other.x, y + other.y);
         }
         
-        vec2 operator-(const vec2 &other) const {
+        inline vec2 operator-(const vec2 &other) const {
             return vec2(x - other.x, y - other.y);
         }
         
-        vec2& operator+=(const vec2 &other) {
+        inline vec2& operator+=(const vec2 &other) {
             x += other.x;
             y += other.y;
             return *this;
         }
         
-        vec2& operator-=(const vec2 &other) {
+        inline vec2& operator-=(const vec2 &other) {
             x -= other.x;
             y -= other.y;
             return *this;
@@ -211,11 +213,11 @@ namespace tuim {
         Color() : r(0), g(0), b(0), bg(false) {}
         Color(uint8_t r, uint8_t g, uint8_t b, bool bg = false) : r(r), g(g), b(b), bg(bg) {}
 
-        bool operator==(const Color &other) const {
+        inline bool operator==(const Color &other) const {
             return r == other.r && g == other.g && b == other.b && bg == other.bg;
         }
 
-        bool operator!=(const Color &other) const {
+        inline bool operator!=(const Color &other) const {
             return r != other.r || g != other.g || b != other.b || bg != other.bg;
         }
     };
@@ -239,29 +241,29 @@ namespace tuim {
         STRIKETHROUGH = 1 << 7
     };
 
-    Style operator|(Style a, Style b) {
+    inline Style operator|(Style a, Style b) {
         return static_cast<Style>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
     }
     
-    Style operator&(Style a, Style b) {
+    inline Style operator&(Style a, Style b) {
         return static_cast<Style>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
     }
     
-    Style operator^(Style a, Style b) {
+    inline Style operator^(Style a, Style b) {
         return static_cast<Style>(static_cast<uint32_t>(a) ^ static_cast<uint32_t>(b));
     }
     
-    Style& operator|=(Style& a, Style b) {
+    inline Style& operator|=(Style& a, Style b) {
         a = static_cast<Style>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
         return a;
     }
     
-    Style& operator&=(Style& a, Style b) {
+    inline Style& operator&=(Style& a, Style b) {
         a = static_cast<Style>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
         return a;
     }
 
-    Style operator~(Style a) {
+    inline Style operator~(Style a) {
         return static_cast<Style>(~static_cast<uint32_t>(a));
     }
 
@@ -546,7 +548,7 @@ namespace tuim {
 *                         INPUTS                           *
 ***********************************************************/
 
-char32_t tuim::PollKeyCode() {
+inline char32_t tuim::PollKeyCode() {
     Context* ctx = tuim::GetCtx();
 
     // Save original state.
@@ -640,17 +642,17 @@ char32_t tuim::PollKeyCode() {
     return keyCode;
 }
 
-tuim::Key tuim::GetPressedKey() {
+inline tuim::Key tuim::GetPressedKey() {
     Context* ctx = tuim::GetCtx();
     return static_cast<tuim::Key>(ctx->m_PressedKeyCode);
 }
 
-bool tuim::IsKeyPressed() {
+inline bool tuim::IsKeyPressed() {
     Context* ctx = tuim::GetCtx();
     return ctx->m_PressedKeyCode == 0;
 }
 
-bool tuim::IsKeyPressed(tuim::Key key) {
+inline bool tuim::IsKeyPressed(tuim::Key key) {
     Context* ctx = tuim::GetCtx();
     return static_cast<tuim::Key>(ctx->m_PressedKeyCode) == key;
 }
@@ -659,7 +661,7 @@ bool tuim::IsKeyPressed(tuim::Key key) {
 *                         COLORS                           *
 ***********************************************************/
 
-tuim::Color tuim::StringToColor(std::string_view sv) {
+inline tuim::Color tuim::StringToColor(std::string_view sv) {
     Color color(255, 255, 255);
 
     if (sv.size() < 2)
@@ -689,7 +691,7 @@ tuim::Color tuim::StringToColor(std::string_view sv) {
     return color;
 }
 
-std::string tuim::ColorToAnsi(const tuim::Color& color) {
+inline std::string tuim::ColorToAnsi(const tuim::Color& color) {
     return std::format(
         "\33[{};2;{};{};{}m",
         (color.bg ? "48" : "38"),
@@ -703,7 +705,7 @@ std::string tuim::ColorToAnsi(const tuim::Color& color) {
 *                         STYLE                            *
 ***********************************************************/
 
-std::string tuim::StyleToAnsi(Style style) {
+inline std::string tuim::StyleToAnsi(Style style) {
     std::string str;
     if ((style & Style::BOLD) == Style::BOLD) str += "\033[1m";
     if ((style & Style::FAINT) == Style::FAINT) str += "\033[2m";
@@ -720,7 +722,7 @@ std::string tuim::StyleToAnsi(Style style) {
 *                    CONTEXT FUNCTIONS                     *
 ***********************************************************/
 
-void tuim::CreateContext() {
+inline void tuim::CreateContext() {
     tuim::Terminal::SetAlternateBuffer(true);
     tuim::Terminal::SetUserInputsVisibility(false);
     tuim::Terminal::SetCursorVisibility(false);
@@ -729,52 +731,52 @@ void tuim::CreateContext() {
     tuim::ctx = new tuim::Context();
 }
 
-void tuim::CreateContext(int argc, char* argv[]) {
+inline void tuim::CreateContext(int argc, char* argv[]) {
     tuim::CreateContext();
 }
 
-void tuim::DeleteContext() {
+inline void tuim::DeleteContext() {
     tuim::Terminal::SetAlternateBuffer(false);
     tuim::Terminal::SetUserInputsVisibility(true);
     tuim::Terminal::SetCursorVisibility(true);
     delete tuim::ctx;
 }
 
-tuim::Context* tuim::GetCtx() {
+inline tuim::Context* tuim::GetCtx() {
     if (tuim::ctx == nullptr)
         throw std::runtime_error("error: context is undefined.");
     return tuim::ctx;
 }
 
-void tuim::SetTitle(std::string_view title) {
+inline void tuim::SetTitle(std::string_view title) {
     tuim::Terminal::SetTitle(title);
 }
 
-void tuim::SetCursorVisibility(bool visible) {
+inline void tuim::SetCursorVisibility(bool visible) {
     tuim::Terminal::SetCursorVisibility(visible);
 }
 
-void tuim::SetFullscreen(bool fullscreen) {
+inline void tuim::SetFullscreen(bool fullscreen) {
     throw std::runtime_error("error: tuim::Fullscreen() is not implemented yet.");
     // TODO: restart the terminal in fullscreen (compatible with at least gnome-terminal).
 }
 
-void tuim::SetFramerate(float framerate) {
+inline void tuim::SetFramerate(float framerate) {
     Context* ctx = tuim::GetCtx();
     ctx->m_Framerate = framerate;
 }
 
-void tuim::DefineStyle(char tag, Style style) {
+inline void tuim::DefineStyle(char tag, Style style) {
     Context* ctx = tuim::GetCtx();
     ctx->m_UserStyles[tag] = style;
 }
 
-void tuim::DefineColor(char tag, Color color) {
+inline void tuim::DefineColor(char tag, Color color) {
     Context* ctx = tuim::GetCtx();
     ctx->m_UserColors[tag] = color;
 }
 
-void tuim::Update(char32_t keyCode) {
+inline void tuim::Update(char32_t keyCode) {
     Context* ctx = tuim::GetCtx();
     ctx->m_PressedKeyCode = keyCode;
 
@@ -828,7 +830,7 @@ void tuim::Update(char32_t keyCode) {
     // ctx->m_ItemsOrdered.clear();
 }
 
-void tuim::Clear() {
+inline void tuim::Clear() {
     vec2 terminalSize = tuim::Terminal::GetTerminalSize();
     Context* ctx = tuim::GetCtx();
 
@@ -842,7 +844,7 @@ void tuim::Clear() {
     ctx->m_CurrentStyle = Style::NONE;
 }
 
-void tuim::Display() {
+inline void tuim::Display() {
     if (!ctx->m_ContainersStack.empty())
         throw std::runtime_error("error: container stack is not empty.");
 
@@ -969,26 +971,26 @@ void tuim::Display() {
 *                 TERMINAL/NATIVE FUNCTIONS                *
 ***********************************************************/
 
-bool tuim::Terminal::IsUserInputsVisible() {
+inline bool tuim::Terminal::IsUserInputsVisible() {
     // TODO: keep track of the cursor visibility in the context.
     return false;
 }
 
-tuim::vec2 tuim::Terminal::GetTerminalSize() {
+inline tuim::vec2 tuim::Terminal::GetTerminalSize() {
     winsize size;
     ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
     return vec2(size.ws_col, size.ws_row);
 }
 
-void tuim::Terminal::SetTitle(std::string_view title) {
+inline void tuim::Terminal::SetTitle(std::string_view title) {
     std::cout << "\033]0;" << title << "\007";
 }
 
-void tuim::Terminal::SetCursorVisibility(bool visible) {
+inline void tuim::Terminal::SetCursorVisibility(bool visible) {
     std::cout << "\033[?25" << (visible ? 'h' : 'l');
 }
 
-void tuim::Terminal::SetUserInputsVisibility(bool visible) {
+inline void tuim::Terminal::SetUserInputsVisibility(bool visible) {
     termios term;
     tcgetattr(0, &term);
     if (visible) term.c_lflag |= ECHO;
@@ -996,31 +998,31 @@ void tuim::Terminal::SetUserInputsVisibility(bool visible) {
     tcsetattr(0, TCSANOW, &term);
 }
 
-void tuim::Terminal::SetAlternateBuffer(bool enabled) {
+inline void tuim::Terminal::SetAlternateBuffer(bool enabled) {
     std::cout << "\033[?1049" << (enabled ? 'h' : 'l');
 }
 
-void tuim::Terminal::SetCursorPos(const tuim::vec2& pos) {
+inline void tuim::Terminal::SetCursorPos(const tuim::vec2& pos) {
     std::cout << "\033[" << pos.y+1 << ";" << pos.x+1 << "H";
 }
 
-void tuim::Terminal::Clear() {
+inline void tuim::Terminal::Clear() {
     std::cout << "\033[2J\033[0m\033[H";
 }
 
-void tuim::Terminal::ClearLine() {
+inline void tuim::Terminal::ClearLine() {
     std::cout << "\033[2K";
 }
 
-void tuim::Terminal::ClearLineEnd() {
+inline void tuim::Terminal::ClearLineEnd() {
     std::cout << "\033[0K";
 }
 
-void tuim::Terminal::ClearEnd() {
+inline void tuim::Terminal::ClearEnd() {
     std::cout << "\033[0J";
 }
 
-void tuim::Terminal::ClearStyles() {
+inline void tuim::Terminal::ClearStyles() {
     std::cout << "\033[0m";
 }
 
@@ -1028,37 +1030,37 @@ void tuim::Terminal::ClearStyles() {
 *                          FRAME                           *
 ***********************************************************/
 
-tuim::Frame::Frame() {
+inline tuim::Frame::Frame() {
     vec2 terminalSize = tuim::Terminal::GetTerminalSize();
     m_Cursor = vec2(0, 0);
     m_Cells = std::vector<std::vector<std::shared_ptr<Cell>>>(terminalSize.y, std::vector<std::shared_ptr<Cell>>(terminalSize.x, nullptr));
 }
 
-tuim::Frame::Frame(const vec2& size) {
+inline tuim::Frame::Frame(const vec2& size) {
     m_Cursor = vec2(0, 0);
     m_Cells = std::vector<std::vector<std::shared_ptr<Cell>>>(size.y, std::vector<std::shared_ptr<Cell>>(size.x, nullptr));
 }
 
-tuim::vec2 tuim::Frame::GetSize() const {
+inline tuim::vec2 tuim::Frame::GetSize() const {
     size_t maxWidth = m_Cells.front().size();
     for (size_t i = 0; i < m_Cells.size(); i++)
         maxWidth = std::max(maxWidth, m_Cells[i].size());
     return vec2(m_Cells.size(), m_Cells.size());
 }
 
-std::shared_ptr<tuim::Cell> tuim::Frame::Get(const tuim::vec2& pos) {
+inline std::shared_ptr<tuim::Cell> tuim::Frame::Get(const tuim::vec2& pos) {
     return m_Cells[pos.y][pos.x];
 }
 
-std::shared_ptr<tuim::Cell> tuim::Frame::Get(size_t x, size_t y) {
+inline std::shared_ptr<tuim::Cell> tuim::Frame::Get(size_t x, size_t y) {
     return m_Cells[y][x];
 }
 
-bool tuim::Frame::Has(size_t x, size_t y) const {
+inline bool tuim::Frame::Has(size_t x, size_t y) const {
     return m_Cells.size() > y && m_Cells[y].size() > x;
 }
 
-void tuim::Frame::Set(const tuim::vec2& pos, std::shared_ptr<tuim::Cell> cell) {
+inline void tuim::Frame::Set(const tuim::vec2& pos, std::shared_ptr<tuim::Cell> cell) {
     // Make sure to resize the vectors in case the position is
     // beyond the column or line size.
     if (pos.y >= m_Cells.size())
@@ -1068,7 +1070,7 @@ void tuim::Frame::Set(const tuim::vec2& pos, std::shared_ptr<tuim::Cell> cell) {
     m_Cells[pos.y][pos.x] = cell;
 }
 
-void tuim::Frame::Clear() {
+inline void tuim::Frame::Clear() {
     for (auto& line : m_Cells)
         std::fill(line.begin(), line.end(), nullptr);
     // TODO: maybe it would be better to reset the size instead?
@@ -1078,12 +1080,12 @@ void tuim::Frame::Clear() {
 *                    COMPONENTS/ITEMS                      *
 ***********************************************************/
 
-tuim::ItemId tuim::GetCurrentItemId() {
+inline tuim::ItemId tuim::GetCurrentItemId() {
     Context* ctx = tuim::GetCtx();
     return ctx->m_ItemsOrdered.back()->m_Id;
 }
 
-uint32_t tuim::GetItemIndex(tuim::ItemId id) {
+inline uint32_t tuim::GetItemIndex(tuim::ItemId id) {
     Context* ctx = tuim::GetCtx();
     for(size_t i = 0; i < ctx->m_ItemsOrdered.size(); i++) {
         if (ctx->m_ItemsOrdered.at(i)->m_Id == id) {
@@ -1093,37 +1095,37 @@ uint32_t tuim::GetItemIndex(tuim::ItemId id) {
     return -1;
 }
 
-uint32_t tuim::getHoveredItemIndex() {
+inline uint32_t tuim::getHoveredItemIndex() {
     Context* ctx = tuim::GetCtx();
     return tuim::GetItemIndex(ctx->m_HoveredItemId);
 }
 
-bool tuim::WasItemActive() {
+inline bool tuim::WasItemActive() {
     Context* ctx = tuim::GetCtx();
     return ctx->m_LastActiveItemId == (ctx->m_ItemsOrdered.back()->m_Id);
 }
 
-bool tuim::IsItemActive() {
+inline bool tuim::IsItemActive() {
     Context* ctx = tuim::GetCtx();
     return ctx->m_ActiveItemId == (ctx->m_ItemsOrdered.back()->m_Id);
 }
 
-bool tuim::IsItemHovered() {
+inline bool tuim::IsItemHovered() {
     Context* ctx = tuim::GetCtx();
     return ctx->m_HoveredItemId == (ctx->m_ItemsOrdered.back()->m_Id);
 }
 
-void tuim::SetActiveItemId(ItemId id) {
+inline void tuim::SetActiveItemId(ItemId id) {
     Context* ctx = tuim::GetCtx();
     ctx->m_ActiveItemId = id;
 }
 
-void tuim::SetHoveredItemId(ItemId id) {
+inline void tuim::SetHoveredItemId(ItemId id) {
     Context* ctx = tuim::GetCtx();
     ctx->m_HoveredItemId = id;
 }
 
-bool tuim::HasHoverable() {
+inline bool tuim::HasHoverable() {
     Context* ctx = tuim::GetCtx();
     for(size_t i = 0; i < ctx->m_ItemsOrdered.size(); i++) {
         if (!(ctx->m_ItemsOrdered.at(i)->m_Flags & ITEM_FLAGS_DISABLED))
@@ -1136,7 +1138,7 @@ bool tuim::HasHoverable() {
 *                       CONTAINERS                         *
 ***********************************************************/
 
-void tuim::BeginContainer(std::string_view id, std::string_view label, tuim::vec2 size, ContainerFlags flags, AlignFlags align) {
+inline void tuim::BeginContainer(std::string_view id, std::string_view label, tuim::vec2 size, ContainerFlags flags, AlignFlags align) {
     Context* ctx = tuim::GetCtx();
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
 
@@ -1160,7 +1162,7 @@ void tuim::BeginContainer(std::string_view id, std::string_view label, tuim::vec
     ctx->m_ContainersStack.push(itemId);
 }
 
-void tuim::EndContainer() {
+inline void tuim::EndContainer() {
     Context* ctx = tuim::GetCtx();
     
     if (ctx->m_ContainersStack.empty())
@@ -1180,7 +1182,7 @@ void tuim::EndContainer() {
     tuim::MergeContainer(container);
 }
 
-void tuim::MergeContainer(std::shared_ptr<tuim::Container> srcContainer) {
+inline void tuim::MergeContainer(std::shared_ptr<tuim::Container> srcContainer) {
     // Get the container that the source will merge into.
     // If the containers stack is empty, an abstract container representing
     // the main/global frame will be returned with CONTAINER_FLAGS_BORDERLESS flags and align properties.
@@ -1317,7 +1319,7 @@ void tuim::MergeContainer(std::shared_ptr<tuim::Container> srcContainer) {
 *                         ITEMS                            *
 ***********************************************************/
     
-template <typename... Args> void tuim::Print(const std::string& fmt, Args&&... args) {
+template <typename... Args> inline void tuim::Print(const std::string& fmt, Args&&... args) {
     std::string str = std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...));
 
     Context* ctx = tuim::GetCtx();
@@ -1467,7 +1469,7 @@ template <typename... Args> void tuim::Print(const std::string& fmt, Args&&... a
     ctx->m_CurrentStyle = currentStyle;
 }
 
-bool tuim::Button(const std::string& id, const std::string& text, tuim::ItemFlags flags) {
+inline bool tuim::Button(const std::string& id, const std::string& text, tuim::ItemFlags flags) {
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
 
     // Create a new item and push it to the stack.
@@ -1492,7 +1494,7 @@ bool tuim::Button(const std::string& id, const std::string& text, tuim::ItemFlag
     return tuim::IsItemActive();
 }
 
-bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags) {
+inline bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* value, InputTextFlags flags) {
     static size_t s_Cursor = value->length();
     
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
@@ -1620,7 +1622,7 @@ bool tuim::TextInput(const std::string& id, std::string_view fmt, std::string* v
     return hasChanged;
 }
 
-bool tuim::Checkbox(const std::string& id, std::string_view fmt, bool* value) {
+inline bool tuim::Checkbox(const std::string& id, std::string_view fmt, bool* value) {
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
 
     // Create a new item and push it to the stack.
@@ -1653,7 +1655,7 @@ bool tuim::Checkbox(const std::string& id, std::string_view fmt, bool* value) {
     return hasChanged;
 }
 
-bool tuim::IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step, uint width) {
+inline bool tuim::IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step, uint width) {
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
 
     // Create a new item and push it to the stack.
@@ -1709,7 +1711,7 @@ bool tuim::IntSlider(const std::string& id, std::string_view fmt, int* value, in
     return hasChanged;
 }
 
-bool tuim::FloatSlider(const std::string& id, std::string_view fmt, float* value, float min, float max, float step, int width) {
+inline bool tuim::FloatSlider(const std::string& id, std::string_view fmt, float* value, float min, float max, float step, int width) {
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
 
     // Create a new item and push it to the stack.
@@ -1765,7 +1767,7 @@ bool tuim::FloatSlider(const std::string& id, std::string_view fmt, float* value
     return hasChanged;
 }
 
-bool tuim::Image(const std::string& id, const std::vector<std::string>& lines, ImageFlags flags) {
+inline bool tuim::Image(const std::string& id, const std::vector<std::string>& lines, ImageFlags flags) {
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
 
     // Create a new item and push it to the stack.
@@ -1816,7 +1818,7 @@ bool tuim::Image(const std::string& id, const std::vector<std::string>& lines, I
     return hasChanged;
 }
 
-void tuim::Paragraph(const std::string& id, const std::string& text, uint width) {
+inline void tuim::Paragraph(const std::string& id, const std::string& text, uint width) {
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
 
     // Create a new item and push it to the stack.
@@ -1921,12 +1923,12 @@ void tuim::Paragraph(const std::string& id, const std::string& text, uint width)
 *                    STRING FUNCTIONS                      *
 ***********************************************************/
 
-int tuim::Utf8CharWidth(char32_t ch) {
+inline int tuim::Utf8CharWidth(char32_t ch) {
     wchar_t wc = static_cast<wchar_t>(ch);
     return wcwidth(wc); // Returns -1, 0, 1, or 2.
 }
 
-uint8_t tuim::Utf8CharLength(char c) {
+inline uint8_t tuim::Utf8CharLength(char c) {
     if ((c & 0x80) == 0x00) return 1; // 0xxxxxxx
     if ((c & 0xE0) == 0xC0) return 2; // 110xxxxx
     if ((c & 0xF0) == 0xE0) return 3; // 1110xxxx
@@ -1934,7 +1936,7 @@ uint8_t tuim::Utf8CharLength(char c) {
     return 0; // Invalid UTF-8 leading byte.
 }
 
-std::string tuim::Utf8Char32ToString(char32_t ch) {
+inline std::string tuim::Utf8Char32ToString(char32_t ch) {
     std::string str = "";
     if (ch <= 0x7F) {
         str += static_cast<char>(ch);
@@ -1957,7 +1959,7 @@ std::string tuim::Utf8Char32ToString(char32_t ch) {
     return str;
 }
 
-char32_t tuim::Utf8Decode(const char* bytes, size_t length) {
+inline char32_t tuim::Utf8Decode(const char* bytes, size_t length) {
     unsigned char b0 = bytes[0];
 
     // Do not try to decode escape sequence as UTF-8.
@@ -1975,7 +1977,7 @@ char32_t tuim::Utf8Decode(const char* bytes, size_t length) {
     return ch; 
 }
 
-void tuim::Utf8IterateString(std::string_view sv, std::function<void(char32_t, size_t)> func) {
+inline void tuim::Utf8IterateString(std::string_view sv, std::function<void(char32_t, size_t)> func) {
     size_t index = 0;
     while (index < sv.size()) {
         // Determine the number of bytes for the next character
@@ -2009,14 +2011,14 @@ void tuim::Utf8IterateString(std::string_view sv, std::function<void(char32_t, s
 }
 
 // http://www.cse.yorku.ca/~oz/hash.html
-tuim::ItemId tuim::StringToId(std::string_view sv) {
+inline tuim::ItemId tuim::StringToId(std::string_view sv) {
     unsigned long hash = 5381;
     for (size_t i = 0; i < sv.size(); i++)
         hash = 33 * hash + (unsigned char) sv[i];
     return hash;
 }
 
-bool tuim::IsPrintable(char32_t ch) {
+inline bool tuim::IsPrintable(char32_t ch) {
     if (std::iswcntrl(ch))
         return false;
     // Check if high-order byte is ESC (0x1B)
@@ -2025,7 +2027,7 @@ bool tuim::IsPrintable(char32_t ch) {
     return true;
 }
 
-size_t tuim::Utf8CharLastIndex(std::string_view sv, size_t index) {
+inline size_t tuim::Utf8CharLastIndex(std::string_view sv, size_t index) {
     if (sv.empty() || index == 0)
         return 0;
     do {
@@ -2034,7 +2036,7 @@ size_t tuim::Utf8CharLastIndex(std::string_view sv, size_t index) {
     return index;
 }
 
-size_t tuim::Utf8CharNextIndex(std::string_view sv, size_t index) {
+inline size_t tuim::Utf8CharNextIndex(std::string_view sv, size_t index) {
     const size_t n = sv.size();
     if (n == 0 || index >= n)
         return n;
@@ -2044,13 +2046,13 @@ size_t tuim::Utf8CharNextIndex(std::string_view sv, size_t index) {
     return index;
 }
 
-bool tuim::IsDigit(const std::string& str) {
+inline bool tuim::IsDigit(const std::string& str) {
     auto it = str.begin();
     while (it != str.end() && std::isdigit(*it)) ++it;
     return !str.empty() && it == str.end();
 }
 
-bool tuim::IsAlphaNumeric(const std::string& str) {
+inline bool tuim::IsAlphaNumeric(const std::string& str) {
     auto it = str.begin();
     while (it != str.end() && (std::isdigit(*it)
         || ('a' < (*it) && (*it) < 'z')
@@ -2059,7 +2061,7 @@ bool tuim::IsAlphaNumeric(const std::string& str) {
     return !str.empty() && it == str.end();
 }
 
-size_t tuim::CalcTextWidth(std::string_view sv) {
+inline size_t tuim::CalcTextWidth(std::string_view sv) {
     // Keep two variables to keep track of the largest line if there are several.
     size_t width = 0;
     size_t maxWidth = 0;
@@ -2123,13 +2125,13 @@ size_t tuim::CalcTextWidth(std::string_view sv) {
 *                        CONTEXT                          *
 **********************************************************/
 
-void tuim::AddItem(std::shared_ptr<tuim::Item> item) {
+inline void tuim::AddItem(std::shared_ptr<tuim::Item> item) {
     Context* ctx = tuim::GetCtx();
     ctx->m_ItemsOrdered.push_back(item);
     ctx->m_Items.emplace(item->m_Id, item);
 }
 
-void tuim::MergeFrame(std::shared_ptr<tuim::Frame> src) {
+inline void tuim::MergeFrame(std::shared_ptr<tuim::Frame> src) {
     std::shared_ptr<Frame> dst = tuim::GetCurrentFrame();
     // TODO: should avoid calling Frame::GetSize() for performances.
     // vec2 srcSize = src->GetSize();
@@ -2159,15 +2161,15 @@ void tuim::MergeFrame(std::shared_ptr<tuim::Frame> src) {
     dst->m_Cursor = vec2(0, origin.y + src->m_Cells.size());
 }
 
-void tuim::SetCurrentCursor(const tuim::vec2& cursor) {
+inline void tuim::SetCurrentCursor(const tuim::vec2& cursor) {
     tuim::GetCurrentFrame()->m_Cursor = cursor;
 }
 
-tuim::vec2 tuim::GetCurrentCursor() {
+inline tuim::vec2 tuim::GetCurrentCursor() {
     return tuim::GetCurrentFrame()->m_Cursor;
 }
 
-std::shared_ptr<tuim::Frame> tuim::GetCurrentFrame() {
+inline std::shared_ptr<tuim::Frame> tuim::GetCurrentFrame() {
     Context* ctx = tuim::GetCtx();
     if (ctx->m_ContainersStack.empty())
         return ctx->m_Frame;
@@ -2178,7 +2180,7 @@ std::shared_ptr<tuim::Frame> tuim::GetCurrentFrame() {
     return std::dynamic_pointer_cast<Container>(it->second)->m_Frame;
 }
 
-std::shared_ptr<tuim::Container> tuim::GetCurrentContainer() {
+inline std::shared_ptr<tuim::Container> tuim::GetCurrentContainer() {
     Context* ctx = tuim::GetCtx();
     if (ctx->m_ContainersStack.empty()) {
         // Make sure that the container's frame is the current screen frame,
