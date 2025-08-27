@@ -780,7 +780,11 @@ inline void tuim::Update(char32_t keyCode) {
     Context* ctx = tuim::GetCtx();
     ctx->m_PressedKeyCode = keyCode;
 
-    if (ctx->m_ActiveItemId == 0 || !(ctx->m_ItemsOrdered.at(tuim::GetItemIndex(ctx->m_ActiveItemId))->m_Flags & ITEM_FLAGS_STAY_ACTIVE)) {
+    uint32_t activeItemIndex = tuim::GetItemIndex(ctx->m_ActiveItemId);
+    if (ctx->m_ActiveItemId == 0
+        || activeItemIndex >= ctx->m_ItemsOrdered.size()
+        || !(ctx->m_ItemsOrdered.at(activeItemIndex)->m_Flags & ITEM_FLAGS_STAY_ACTIVE)) {
+            
         ctx->m_LastActiveItemId = ctx->m_ActiveItemId;
         ctx->m_ActiveItemId = 0;
 
