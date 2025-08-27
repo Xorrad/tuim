@@ -451,6 +451,8 @@ namespace tuim {
     bool IntSlider(const std::string& id, std::string_view fmt, int* value, int min, int max, int step = 1, uint width = 100); // Print an integer slider.
     bool FloatSlider(const std::string& id, std::string_view fmt, float* value, float min, float max, float step = 0.01, int width = 100); // Print a float number slider.
     
+    bool EnumInput(const std::string& id, std::string_view fmt, size_t* index, const std::vector<std::string>& entries); // Print an enum input.
+    
     bool Image(const std::string& id, const std::vector<std::string>& lines, ImageFlags flags = IMAGE_FLAGS_NONE); // Print an ascii art image in the form of a vector of strings.
     void Paragraph(const std::string& id, const std::string& text, uint width); // Print a paragraph with automatic line breaks and word spacing
 
@@ -1764,6 +1766,52 @@ inline bool tuim::FloatSlider(const std::string& id, std::string_view fmt, float
     // if (tuim::IsItemHovered() && tuim::IsKeyPressed(Key::ENTER)) {}
 
     text = std::vformat(fmt, std::make_format_args(text, *value));
+    item->m_Size = vec2(tuim::CalcTextWidth(text), 1);
+    
+    tuim::Print(text);
+
+    return hasChanged;
+}
+
+inline bool tuim::EnumInput(const std::string& id, std::string_view fmt, size_t* index, const std::vector<std::string>& entries) {
+    std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
+
+    // Create a new item and push it to the stack.
+    ItemId itemId = tuim::StringToId(id);
+    std::shared_ptr<Item> item = std::make_shared<Item>();
+    item->m_Id = itemId;
+    item->m_Pos = frame->m_Cursor;
+    item->m_Flags = ITEM_FLAGS_NONE;
+    tuim::AddItem(item);
+
+    bool hasChanged = false;
+        
+    if (tuim::IsItemHovered()) {
+        if (tuim::IsKeyPressed(Key::LEFT)) {
+            if (*index == 0) *index = entries.size() - 1;
+            else *index = *index - 1;
+            hasChanged = true;
+        }
+        else if (tuim::IsKeyPressed(Key::RIGHT)) {
+            if (*index == entries.size()-1) *index = 0;
+            else *index = *index + 1;
+            hasChanged = true;
+        }
+        else if (tuim::IsKeyPressed(Key::ENTER)) {
+            if (tuim::IsItemActive()) {
+                tuim::SetActiveItemId(0);
+                hasChanged = true;
+            }
+            else {
+                tuim::SetActiveItemId(item->m_Id);
+            }
+        }
+        if (tuim::IsItemActive()) tuim::Print("[*] ");
+        else tuim::Print("[x] ");
+    }
+    else tuim::Print("[ ] ");
+
+    std::string text = std::vformat(fmt, std::make_format_args(entries.at(*index)));
     item->m_Size = vec2(tuim::CalcTextWidth(text), 1);
     
     tuim::Print(text);
