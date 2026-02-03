@@ -1326,7 +1326,7 @@ inline void tuim::MergeContainer(std::shared_ptr<tuim::Container> srcContainer) 
 ***********************************************************/
     
 template <typename... Args> inline void tuim::Print(const std::string& fmt, Args&&... args) {
-    std::string str = std::vformat(fmt, std::make_format_args(std::forward<Args>(args)...));
+    std::string str = std::vformat(fmt, std::make_format_args(args...));
 
     Context* ctx = tuim::GetCtx();
     std::shared_ptr<Frame> frame = tuim::GetCurrentFrame();
