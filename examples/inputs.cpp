@@ -1,7 +1,4 @@
 #include "../tuim.hpp"
-#include "backward/signal_handler.hpp"
-
-SignalHandler signalHandler;
 
 int main(int argc, char* argv[]) {    
     

@@ -1,0 +1,38 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install Linux Dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libdw-dev binutils-dev libdwarf-dev
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DTUIM_BUILD_TESTING=ON -DTUIM_BUILD_EXAMPLES=OFF -DTUIM_RUN_TESTS_POST_BUILD=OFF
+
+      - name: Build Executable
+        run: cmake --build build --target tests --config Debug --parallel
+
+      - name: Run tests
+        shell: bash
+        run: find ${{ github.workspace }}/build -name "tests*" -exec {} +

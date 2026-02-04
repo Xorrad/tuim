@@ -19,6 +19,23 @@ An header-only immediate mode text-based user interface for terminals.
 
 ## Installation
 
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+  tuim
+  GIT_REPOSITORY https://github.com/Xorrad/tuim
+  GIT_TAG master
+)
+set(TUIM_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(tuim)
+
+target_link_libraries(your_app PRIVATE tuim::tuim)
+```
+
+```cpp
+#include <tuim.hpp>
+```
+
 ## Features
 
 ## Examples

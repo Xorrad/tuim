@@ -1,7 +1,4 @@
 #include "../tuim.hpp"
-#include "backward/signal_handler.hpp"
-
-SignalHandler signalHandler;
 
 const std::vector<std::string> portrait1 = {
     "       ███▓▓██▓▓█▓██                 ",
