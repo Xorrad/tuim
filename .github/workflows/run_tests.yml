@@ -35,4 +35,4 @@ jobs:
 
       - name: Run tests
         shell: bash
-        run: find ${{ github.workspace }}/build -name "tests*" -exec {} +
+        run: find ${{ github.workspace }}/build -maxdepth 1 -name "tests*" -exec {} +
